@@ -83,10 +83,135 @@ export function getChartUrl(url: string | undefined): string {
   return url;
 }
 
+export async function refreshAccessToken(): Promise<string | null> {
+  try {
+    const refreshToken = typeof window !== 'undefined' ? localStorage.getItem('refresh') : null;
+    if (!refreshToken) return null;
+
+    const apiBase = getApiBaseUrl();
+    const res = await fetch(`${apiBase}/auth/refresh/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh: refreshToken }),
+    });
+
+    if (!res.ok) {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('access');
+        localStorage.removeItem('refresh');
+        localStorage.removeItem('sms_user');
+      }
+      return null;
+    }
+
+    const data = await res.json();
+    if (data && data.access) {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('access', data.access);
+        if (data.refresh) {
+          localStorage.setItem('refresh', data.refresh);
+        }
+      }
+      return data.access;
+    }
+    return null;
+  } catch (err) {
+    console.warn('Error refreshing JWT token:', err);
+    return null;
+  }
+}
+
+export async function authenticatedFetch(
+  input: RequestInfo | URL,
+  init?: RequestInit
+): Promise<Response> {
+  const options: RequestInit = init ? { ...init } : {};
+  const headers = new Headers(options.headers || {});
+
+  let token = typeof window !== 'undefined' ? localStorage.getItem('access') : null;
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+  options.headers = headers;
+
+  let response = await fetch(input, options);
+
+  // If 401 Unauthorized, attempt token refresh once
+  if (response.status === 401 && token) {
+    const newAccessToken = await refreshAccessToken();
+    if (newAccessToken) {
+      const retryHeaders = new Headers(init?.headers || {});
+      retryHeaders.set('Authorization', `Bearer ${newAccessToken}`);
+      options.headers = retryHeaders;
+      response = await fetch(input, options);
+    }
+  }
+
+  return response;
+}
+
+export async function verifyCurrentToken(): Promise<AuthUser | null> {
+  try {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('access') : null;
+    if (!token) return null;
+
+    const apiBase = getApiBaseUrl();
+    let res = await fetch(`${apiBase}/auth/me/`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (res.status === 401) {
+      const newToken = await refreshAccessToken();
+      if (newToken) {
+        res = await fetch(`${apiBase}/auth/me/`, {
+          headers: { Authorization: `Bearer ${newToken}` },
+        });
+      }
+    }
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.success && data.user) {
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('sms_user', JSON.stringify(data.user));
+        }
+        return data.user;
+      }
+    }
+    return null;
+  } catch (err) {
+    console.warn('Failed to verify token:', err);
+    return null;
+  }
+}
+
+export async function logoutUserApi(): Promise<void> {
+  try {
+    const apiBase = getApiBaseUrl();
+    const refreshToken = typeof window !== 'undefined' ? localStorage.getItem('refresh') : null;
+    if (refreshToken) {
+      await authenticatedFetch(`${apiBase}/auth/logout/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh: refreshToken }),
+      });
+    }
+  } catch (e) {
+    console.warn('Logout API error:', e);
+  } finally {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('access');
+      localStorage.removeItem('refresh');
+      localStorage.removeItem('sms_user');
+      localStorage.clear();
+    }
+  }
+}
+
 export async function fetchPlanningVersions(): Promise<PlanningVersion[]> {
   try {
     const apiBase = getApiBaseUrl();
-    const res = await fetch(`${apiBase}/versions/`);
+    const res = await authenticatedFetch(`${apiBase}/versions/`);
     if (!res.ok) throw new Error('Failed to fetch planning versions');
     return await res.json();
   } catch (error) {
@@ -98,7 +223,7 @@ export async function fetchPlanningVersions(): Promise<PlanningVersion[]> {
 export async function fetchLatestPlanningVersion(): Promise<PlanningVersion | null> {
   try {
     const apiBase = getApiBaseUrl();
-    const res = await fetch(`${apiBase}/versions/latest/`);
+    const res = await authenticatedFetch(`${apiBase}/versions/latest/`);
     if (!res.ok) throw new Error('Failed to fetch latest version');
     return await res.json();
   } catch (error) {
@@ -110,7 +235,7 @@ export async function fetchLatestPlanningVersion(): Promise<PlanningVersion | nu
 export async function fetchBenchmarks(): Promise<BenchmarkItem[]> {
   try {
     const apiBase = getApiBaseUrl();
-    const res = await fetch(`${apiBase}/benchmarks/`);
+    const res = await authenticatedFetch(`${apiBase}/benchmarks/`);
     if (!res.ok) throw new Error('Failed to fetch benchmarks');
     return await res.json();
   } catch (error) {
@@ -124,7 +249,7 @@ export async function uploadPlanningSpreadsheet(file: File): Promise<PlanningVer
   formData.append('file', file);
 
   const apiBase = getApiBaseUrl();
-  const res = await fetch(`${apiBase}/versions/upload_planning/`, {
+  const res = await authenticatedFetch(`${apiBase}/versions/upload_planning/`, {
     method: 'POST',
     body: formData,
   });
@@ -141,6 +266,10 @@ export async function loginUser(
   password: string,
   loginType: 'administrator' | 'user'
 ): Promise<AuthResponse> {
+  if (!username.trim() || !password) {
+    throw new Error('Username and password are required');
+  }
+
   const apiBase = getApiBaseUrl();
 
   try {
@@ -168,8 +297,8 @@ export async function loginUser(
       return {
         user: {
           username: backendUser.username,
-          name: backendUser.name || backendUser.username,
-          email: backendUser.email || '',
+          name: backendUser.name || (backendUser.username === 'admin' ? 'J. Smith (Sr. Production Planner)' : backendUser.username),
+          email: backendUser.email || `${backendUser.username}@sms-group.com`,
           role,
           is_superuser: Boolean(backendUser.is_superuser),
           is_staff: Boolean(backendUser.is_staff),
@@ -182,35 +311,16 @@ export async function loginUser(
     if (data && data.error) {
       throw new Error(data.error);
     }
+
+    throw new Error('Authentication failed. Invalid response from server.');
   } catch (err: any) {
-    // If it's a specific validation error returned by Django (e.g. invalid credentials or role mismatch), rethrow
     if (err.message && !err.message.includes('Failed to fetch') && !err.message.includes('FetchError') && !err.message.includes('NetworkError') && !err.message.includes('JSON')) {
       throw err;
     }
 
-    console.warn('Backend API connection offline/unreachable. Falling back to client login mode:', err);
+    throw new Error('Network error: Unable to reach authentication server. Please check backend connection.');
   }
-
-  // Fallback mode if backend API is not running or unreachable on deployed server
-  if (!username.trim() || !password) {
-    throw new Error('Username and password are required');
-  }
-
-  const isDemoAdmin = loginType === 'administrator';
-  return {
-    user: {
-      username: username.trim(),
-      name: username.trim() === 'admin' ? 'J. Smith (Sr. Production Planner)' : username.trim(),
-      email: `${username.trim()}@sms-group.com`,
-      role: loginType,
-      is_superuser: isDemoAdmin,
-      is_staff: isDemoAdmin,
-    },
-    access: 'demo-access-token',
-    refresh: 'demo-refresh-token',
-  };
 }
-
 
 export interface CalculatedTaskItem {
   id: string;
@@ -251,7 +361,7 @@ export async function calculateManualPlanning(
 ): Promise<ManualCalculationResponse | null> {
   try {
     const apiBase = getApiBaseUrl();
-    const res = await fetch(`${apiBase}/versions/calculate_manual_planning/`, {
+    const res = await authenticatedFetch(`${apiBase}/versions/calculate_manual_planning/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ annual_hours: annualHours, year, tasks })
@@ -267,7 +377,7 @@ export async function calculateManualPlanning(
 export async function fetchManualConfig(): Promise<{ year: number; tasks: any[] } | null> {
   try {
     const apiBase = getApiBaseUrl();
-    const res = await fetch(`${apiBase}/versions/get_manual_config/`);
+    const res = await authenticatedFetch(`${apiBase}/versions/get_manual_config/`);
     if (!res.ok) throw new Error('Failed to fetch manual config');
     return await res.json();
   } catch (err) {
@@ -279,7 +389,7 @@ export async function fetchManualConfig(): Promise<{ year: number; tasks: any[] 
 export async function saveManualConfig(year: number, tasks: any[]): Promise<boolean> {
   try {
     const apiBase = getApiBaseUrl();
-    const res = await fetch(`${apiBase}/versions/save_manual_config/`, {
+    const res = await authenticatedFetch(`${apiBase}/versions/save_manual_config/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ year, tasks })
@@ -349,7 +459,7 @@ export interface WeldingPreviewResponse {
 export async function fetchBackendProjects(): Promise<BackendProject[]> {
   try {
     const apiBase = getApiBaseUrl();
-    const res = await fetch(`${apiBase}/projects/`);
+    const res = await authenticatedFetch(`${apiBase}/projects/`);
     if (!res.ok) throw new Error('Failed to fetch backend projects');
     return await res.json();
   } catch (err) {
@@ -365,7 +475,7 @@ export async function previewWeldingCalculation(
 ): Promise<WeldingPreviewResponse | null> {
   try {
     const apiBase = getApiBaseUrl();
-    const res = await fetch(`${apiBase}/projects/preview_welding_calculation/`, {
+    const res = await authenticatedFetch(`${apiBase}/projects/preview_welding_calculation/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -386,7 +496,7 @@ export async function updateBackendProject(id: number | string, data: any): Prom
 
   try {
     const apiBase = getApiBaseUrl();
-    const res = await fetch(`${apiBase}/projects/${id}/`, {
+    const res = await authenticatedFetch(`${apiBase}/projects/${id}/`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
@@ -398,5 +508,3 @@ export async function updateBackendProject(id: number | string, data: any): Prom
     return null;
   }
 }
-
-

@@ -140,7 +140,7 @@ def ensure_seed_data(request=None):
         admin_user = User.objects.create_superuser(
             username="admin",
             email="admin@sms-group.com",
-            password="admin"
+            password="smsgroup2026"
         )
         admin_user.first_name = "J."
         admin_user.last_name = "Smith"
@@ -150,11 +150,12 @@ def ensure_seed_data(request=None):
         std_user = User.objects.create_user(
             username="user",
             email="user@sms-group.com",
-            password="user"
+            password="smsgroup2026"
         )
         std_user.first_name = "Plant"
         std_user.last_name = "Planner"
         std_user.save()
+
 
     chart_urls = sync_graph_automation_charts(request=request)
     
@@ -373,173 +374,8 @@ class BenchmarkViewSet(viewsets.ReadOnlyModelViewSet):
         return super().list(request, *args, **kwargs)
 
 
-@api_view(["POST"])
-@permission_classes([AllowAny])
-def login_api(request):
-    try:
-        ensure_seed_data(request=request)
-    except Exception as e:
-        print(f"Warning during ensure_seed_data in login_api: {e}")
+from account.views import login_api
 
-    username = (request.data.get("username") or "").strip()
-    password = request.data.get("password") or ""
-    login_role = request.data.get("role") or request.data.get("login_type") or "user"
-
-    # --------------------------------------------------
-    # Validate required fields
-    # --------------------------------------------------
-
-    if not username or not password:
-        return Response(
-            {
-                "success": False,
-                "error": "Username and password are required"
-            },
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    # --------------------------------------------------
-    # Validate role
-    # --------------------------------------------------
-
-    allowed_roles = ["administrator", "user"]
-
-    if login_role not in allowed_roles:
-        return Response(
-            {
-                "success": False,
-                "error": "Invalid login role"
-            },
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    # --------------------------------------------------
-    # Authenticate username / corporate email and password
-    # --------------------------------------------------
-    from django.contrib.auth.models import User
-    from django.db.models import Q
-
-    # Support lookup by username OR corporate email (case-insensitive)
-    user_obj = User.objects.filter(
-        Q(username__iexact=username) | Q(email__iexact=username)
-    ).first()
-
-    if not user_obj:
-        if username.lower() in ["admin", "administrator", "admin@sms-group.com"] or login_role == "administrator":
-            user_obj, _ = User.objects.get_or_create(
-                username="admin",
-                defaults={
-                    "email": "admin@sms-group.com",
-                    "is_superuser": True,
-                    "is_staff": True,
-                    "first_name": "J.",
-                    "last_name": "Smith",
-                }
-            )
-            user_obj.is_superuser = True
-            user_obj.is_staff = True
-            user_obj.set_password(password)
-            user_obj.save()
-        elif username.lower() in ["user", "planner", "user@sms-group.com"] or login_role == "user":
-            user_obj, _ = User.objects.get_or_create(
-                username="user",
-                defaults={
-                    "email": "user@sms-group.com",
-                    "is_superuser": False,
-                    "is_staff": False,
-                    "first_name": "Plant",
-                    "last_name": "Planner",
-                }
-            )
-            user_obj.set_password(password)
-            user_obj.save()
-
-    user = None
-    if user_obj:
-        user = authenticate(username=user_obj.username, password=password)
-
-        if user is None and password and user_obj.username in ["admin", "user"]:
-            user_obj.set_password(password)
-            user_obj.save()
-            user = authenticate(username=user_obj.username, password=password)
-
-    if user is None:
-        return Response(
-            {
-                "success": False,
-                "error": "Invalid username or password"
-            },
-            status=status.HTTP_401_UNAUTHORIZED,
-        )
-
-    # --------------------------------------------------
-    # Determine actual backend role
-    # --------------------------------------------------
-
-    is_administrator = (
-        user.is_staff or user.is_superuser
-    )
-
-    actual_role = (
-        "administrator"
-        if is_administrator
-        else "user"
-    )
-
-    # --------------------------------------------------
-    # Validate selected role against actual user role
-    # --------------------------------------------------
-
-    if login_role == "administrator" and not is_administrator:
-        return Response(
-            {
-                "success": False,
-                "error": "This account does not have administrator access."
-            },
-            status=status.HTTP_403_FORBIDDEN,
-        )
-
-    if login_role == "user" and is_administrator:
-        return Response(
-            {
-                "success": False,
-                "error": "Administrator accounts must use Administrator login."
-            },
-            status=status.HTTP_403_FORBIDDEN,
-        )
-
-    # --------------------------------------------------
-    # Generate JWT tokens
-    # --------------------------------------------------
-
-    refresh = RefreshToken.for_user(user)
-
-    # Store role inside JWT token
-    refresh["role"] = actual_role
-    refresh.access_token["role"] = actual_role
-
-    # --------------------------------------------------
-    # Return response
-    # --------------------------------------------------
-
-    # Determine application role
-    if user.is_superuser or user.is_staff:
-        role = "administrator"
-    else:
-        role = "user"
-
-    return Response({
-        "success": True,
-        "access": str(refresh.access_token),
-        "refresh": str(refresh),
-        "user": {
-            "username": user.username,
-            "email": user.email,
-            "role": role,
-            "is_superuser": user.is_superuser,
-            "is_staff": user.is_staff,
-        }
-    })
         
 
 

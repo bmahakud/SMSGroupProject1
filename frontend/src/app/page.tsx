@@ -15,6 +15,8 @@ import {
   fetchPlanningVersions, 
   fetchLatestPlanningVersion, 
   fetchBenchmarks, 
+  verifyCurrentToken,
+  logoutUserApi,
   PlanningVersion, 
   ManualCalculationResponse,
   BenchmarkItem,
@@ -95,26 +97,50 @@ export default function Home() {
   const [manualCalculationResult, setManualCalculationResult] = useState<ManualCalculationResponse | null>(null);
 
   useEffect(() => {
-  try {
-    const access = localStorage.getItem("access");
-    const refresh = localStorage.getItem("refresh");
-    const savedUser = localStorage.getItem("sms_user");
+    async function initSession() {
+      try {
+        const access = localStorage.getItem("access");
+        const savedUser = localStorage.getItem("sms_user");
 
-    if (access && refresh && savedUser) {
-      const parsed = JSON.parse(savedUser);
-      setCurrentUser(parsed);
-      setIsAuthenticated(true);
-    } else {
-      setCurrentUser(null);
-      setIsAuthenticated(false);
+        if (access && access !== 'demo-access-token') {
+          // Verify JWT token against backend endpoint /api/v1/auth/me/
+          const verifiedUser = await verifyCurrentToken();
+          if (verifiedUser) {
+            setCurrentUser(verifiedUser);
+            setIsAuthenticated(true);
+          } else if (savedUser) {
+            // Fallback parsing savedUser if network transient fail
+            const parsed = JSON.parse(savedUser);
+            if (parsed && parsed.username && parsed.role) {
+              setCurrentUser(parsed);
+              setIsAuthenticated(true);
+            } else {
+              localStorage.clear();
+              setCurrentUser(null);
+              setIsAuthenticated(false);
+            }
+          } else {
+            localStorage.clear();
+            setCurrentUser(null);
+            setIsAuthenticated(false);
+          }
+        } else {
+          localStorage.removeItem("access");
+          localStorage.removeItem("refresh");
+          localStorage.removeItem("sms_user");
+          setCurrentUser(null);
+          setIsAuthenticated(false);
+        }
+      } catch (e) {
+        console.warn("Failed to restore session:", e);
+        localStorage.clear();
+      } finally {
+        setIsInitializing(false);
+      }
     }
-  } catch (e) {
-    console.warn("Failed to restore session:", e);
-    localStorage.clear();
-  } finally {
-    setIsInitializing(false);
-  }
-}, []);
+
+    initSession();
+  }, []);
 
   const isAdmin = Boolean(currentUser?.role === 'administrator' || currentUser?.is_superuser || currentUser?.is_staff);
 
@@ -165,41 +191,28 @@ export default function Home() {
   }, [isAuthenticated]);
 
   const handleLoginSuccess = (
-  user: AuthUser,
-  access: string,
-  refresh: string
-) => {
-  setCurrentUser(user);
-  setIsAuthenticated(true);
+    user: AuthUser,
+    access: string,
+    refresh: string
+  ) => {
+    setCurrentUser(user);
+    setIsAuthenticated(true);
 
-  try {
-    localStorage.setItem("access", access);
-    localStorage.setItem("refresh", refresh);
-    localStorage.setItem("sms_user", JSON.stringify(user));
-  } catch (e) {
-    console.warn("LocalStorage save failed:", e);
-  }
-};
+    try {
+      localStorage.setItem("access", access);
+      localStorage.setItem("refresh", refresh);
+      localStorage.setItem("sms_user", JSON.stringify(user));
+    } catch (e) {
+      console.warn("LocalStorage save failed:", e);
+    }
+  };
 
-  const handleLogout = () => {
-  setIsAuthenticated(false);
-  setCurrentUser(null);
-
-  try {
-    // Remove JWT tokens
-    localStorage.removeItem("access");
-    localStorage.removeItem("refresh");
-
-    // Remove user information
-    localStorage.removeItem("sms_user");
-
-  } catch (e) {
-    console.warn("LocalStorage remove failed:", e);
-  }
-
-  window.location.href = "/";
-  
-};
+  const handleLogout = async () => {
+    setIsAuthenticated(false);
+    setCurrentUser(null);
+    await logoutUserApi();
+    window.location.href = "/";
+  };
 
   const handleUploadSuccess = (newVersion: PlanningVersion) => {
     setVersions(prev => [newVersion, ...prev]);

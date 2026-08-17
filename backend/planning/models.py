@@ -33,7 +33,7 @@ class Benchmark(models.Model):
     description = models.TextField(blank=True, default="")
 
     def __str__(self):
-        return self.name
+        return str(self.name)
 
 
 class ManualInputConfig(models.Model):

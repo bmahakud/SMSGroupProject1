@@ -22,6 +22,7 @@ import {
   FileText,
 } from 'lucide-react';
 import { updateBackendProject } from '../lib/api';
+import TaskScheduleSlider from './TaskScheduleSlider';
 
 interface EditTaskItem {
   id: string;
@@ -883,7 +884,7 @@ export const ProjectDetailsModal: React.FC<ProjectDetailsModalProps> = ({
                     })}
                   </div>
 
-                    {/* SINGLE MASTER SCHEDULE CONTROLLER FOR ACTIVE TASK */}
+                    {/* DUAL POINTER SCHEDULE CONTROLLER FOR ACTIVE TASK */}
                     {(() => {
                       const tStart = currentTask?.start_date || projectMeta.startDate;
                       let startIdx = projectMonthSteps.findIndex((s) => s.dateStr === tStart);
@@ -894,132 +895,20 @@ export const ProjectDetailsModal: React.FC<ProjectDetailsModalProps> = ({
                       const tColor = colors[activeTaskIdx % colors.length];
 
                       return (
-                        <div style={{ background: 'rgba(10, 16, 30, 0.85)', padding: '0.9rem 1rem', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.12)' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.65rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                            <div style={{ fontSize: '0.82rem', fontWeight: 800, color: tColor }}>
-                              Task #{activeTaskIdx + 1} ({currentTask?.task_name}): Start & End Schedule Controller
-                            </div>
-                            <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#10b981', background: 'rgba(16, 185, 129, 0.12)', padding: '0.2rem 0.65rem', borderRadius: '12px', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
-                              {projectMonthSteps[startIdx]?.label || 'Start'} ➔ {projectMonthSteps[endIdx]?.label || 'End'} ({dur} {dur === 1 ? 'Month' : 'Months'})
-                            </div>
-                          </div>
-
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
-                            {/* 1. START MONTH CONTROL */}
-                            <div>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
-                                <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--accent-cyan)' }}>
-                                  Start / Kickoff Month
-                                </span>
-                                <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#fff' }}>
-                                  {projectMonthSteps[startIdx]?.label || ''}
-                                </span>
-                              </div>
-                              <input
-                                type="range"
-                                min={0}
-                                max={Math.max(0, projectMonthSteps.length - 1)}
-                                value={startIdx}
-                                onChange={(e) => {
-                                  const newStartIdx = Number(e.target.value);
-                                  const newStartDate = projectMonthSteps[newStartIdx]?.dateStr || projectMeta.startDate;
-                                  let newDur = endIdx - newStartIdx + 1;
-                                  if (newDur < 1) newDur = 1;
-                                  handleTaskChange(activeTaskIdx, 'start_date', newStartDate);
-                                  handleTaskChange(activeTaskIdx, 'duration_months', newDur);
-                                }}
-                                style={{ width: '100%', accentColor: tColor, cursor: 'pointer', marginBottom: '0.35rem' }}
-                              />
-                              <div style={{ display: 'flex', gap: '0.25rem', overflowX: 'auto', paddingBottom: '0.1rem' }}>
-                                {projectMonthSteps.map((step, sIdx) => {
-                                  const isSelected = startIdx === sIdx;
-                                  return (
-                                    <button
-                                      key={`start_${step.dateStr}_${sIdx}`}
-                                      type="button"
-                                      onClick={() => {
-                                        const newStartDate = step.dateStr;
-                                        let newDur = endIdx - sIdx + 1;
-                                        if (newDur < 1) newDur = 1;
-                                        handleTaskChange(activeTaskIdx, 'start_date', newStartDate);
-                                        handleTaskChange(activeTaskIdx, 'duration_months', newDur);
-                                      }}
-                                      style={{
-                                        padding: '0.18rem 0.4rem',
-                                        borderRadius: '4px',
-                                        fontSize: '0.64rem',
-                                        fontWeight: isSelected ? 800 : 600,
-                                        background: isSelected ? `${tColor}33` : 'rgba(255, 255, 255, 0.04)',
-                                        border: isSelected ? `1px solid ${tColor}` : '1px solid rgba(255, 255, 255, 0.08)',
-                                        color: isSelected ? tColor : 'var(--text-muted)',
-                                        cursor: 'pointer',
-                                        whiteSpace: 'nowrap',
-                                      }}
-                                    >
-                                      {step.label}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </div>
-
-                            {/* 2. END MONTH CONTROL */}
-                            <div>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
-                                <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--accent-cyan)' }}>
-                                  Completion / End Month
-                                </span>
-                                <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#fff' }}>
-                                  {projectMonthSteps[endIdx]?.label || ''}
-                                </span>
-                              </div>
-                              <input
-                                type="range"
-                                min={startIdx}
-                                max={Math.max(startIdx, projectMonthSteps.length - 1)}
-                                value={endIdx}
-                                onChange={(e) => {
-                                  const newEndIdx = Number(e.target.value);
-                                  const newDur = Math.max(1, newEndIdx - startIdx + 1);
-                                  handleTaskChange(activeTaskIdx, 'duration_months', newDur);
-                                }}
-                                style={{ width: '100%', accentColor: tColor, cursor: 'pointer', marginBottom: '0.35rem' }}
-                              />
-                              <div style={{ display: 'flex', gap: '0.25rem', overflowX: 'auto', paddingBottom: '0.1rem' }}>
-                                {projectMonthSteps.map((step, sIdx) => {
-                                  const isDisabled = sIdx < startIdx;
-                                  const isSelected = endIdx === sIdx;
-                                  return (
-                                    <button
-                                      key={`end_${step.dateStr}_${sIdx}`}
-                                      type="button"
-                                      disabled={isDisabled}
-                                      onClick={() => {
-                                        if (isDisabled) return;
-                                        const newDur = Math.max(1, sIdx - startIdx + 1);
-                                        handleTaskChange(activeTaskIdx, 'duration_months', newDur);
-                                      }}
-                                      style={{
-                                        padding: '0.18rem 0.4rem',
-                                        borderRadius: '4px',
-                                        fontSize: '0.64rem',
-                                        fontWeight: isSelected ? 800 : 600,
-                                        background: isSelected ? `${tColor}33` : 'rgba(255, 255, 255, 0.04)',
-                                        border: isSelected ? `1px solid ${tColor}` : '1px solid rgba(255, 255, 255, 0.08)',
-                                        color: isSelected ? tColor : isDisabled ? 'rgba(255,255,255,0.2)' : 'var(--text-muted)',
-                                        cursor: isDisabled ? 'not-allowed' : 'pointer',
-                                        whiteSpace: 'nowrap',
-                                        opacity: isDisabled ? 0.4 : 1,
-                                      }}
-                                    >
-                                      {step.label}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
+                        <TaskScheduleSlider
+                          taskTitle={`Task #${activeTaskIdx + 1} (${currentTask?.task_name || 'Task'})`}
+                          taskColor={tColor}
+                          projectMonthSteps={projectMonthSteps}
+                          startIdx={startIdx}
+                          endIdx={endIdx}
+                          durationMonths={dur}
+                          onChange={(newStartIdx, newEndIdx) => {
+                            const newStartDate = projectMonthSteps[newStartIdx]?.dateStr || projectMeta.startDate;
+                            const newDur = Math.max(1, newEndIdx - newStartIdx + 1);
+                            handleTaskChange(activeTaskIdx, 'start_date', newStartDate);
+                            handleTaskChange(activeTaskIdx, 'duration_months', newDur);
+                          }}
+                        />
                       );
                     })()}
                 </div>
