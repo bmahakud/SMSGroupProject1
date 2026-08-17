@@ -241,6 +241,33 @@ export const ProjectPlanningView: React.FC<
 
   /*
    * ============================================================
+   * PAGINATION
+   * Show 10 projects per page.
+   * ============================================================
+   */
+
+  const PROJECTS_PER_PAGE = 10;
+
+  const [currentPage, setCurrentPage] = useState<number>(1);
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(projects.length / PROJECTS_PER_PAGE)
+  );
+
+  const paginatedProjects = projects.slice(
+    (currentPage - 1) * PROJECTS_PER_PAGE,
+    currentPage * PROJECTS_PER_PAGE
+  );
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  /*
+   * ============================================================
    * FIELD REFS
    * These are used to automatically move the user to the first
    * missing required field.
@@ -1031,7 +1058,6 @@ export const ProjectPlanningView: React.FC<
     message?: string;
   }) => {
     if (!message) return null;
-
     return (
       <div
         style={{
@@ -3665,7 +3691,7 @@ export const ProjectPlanningView: React.FC<
             </thead>
 
             <tbody>
-              {projects.map(
+              {paginatedProjects.map(
                 (
                   project: any
                 ) => {
@@ -4023,6 +4049,88 @@ export const ProjectPlanningView: React.FC<
               )}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Pagination controls */}
+      {projects.length > PROJECTS_PER_PAGE && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '0.4rem',
+            marginTop: '1rem',
+            paddingBottom: '1rem',
+            flexWrap: 'wrap',
+          }}
+        >
+          <span
+            style={{
+              color: 'var(--text-muted)',
+              fontSize: '0.75rem',
+              marginRight: '0.5rem',
+            }}
+          >
+            Showing {(currentPage - 1) * PROJECTS_PER_PAGE + 1}
+            {' - '}
+            {Math.min(currentPage * PROJECTS_PER_PAGE, projects.length)}
+            {' of '}
+            {projects.length} projects
+          </span>
+          <button
+            type="button"
+            onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+            disabled={currentPage === 1}
+            style={{
+              padding: '0.45rem 0.8rem',
+              border: '1px solid var(--border-color, #374151)',
+              borderRadius: '6px',
+              background: currentPage === 1 ? 'rgba(255,255,255,0.05)' : 'transparent',
+              color: currentPage === 1 ? 'var(--text-muted, #6b7280)' : 'var(--text-main)',
+              cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+              fontWeight: 600,
+            }}
+          >
+            Previous
+          </button>
+
+          {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
+            <button
+              key={page}
+              type="button"
+              onClick={() => setCurrentPage(page)}
+              style={{
+                minWidth: '34px',
+                padding: '0.45rem 0.65rem',
+                border: '1px solid var(--border-color, #374151)',
+                borderRadius: '6px',
+                background: currentPage === page ? 'var(--accent-color, #2563eb)' : 'transparent',
+                color: currentPage === page ? '#fff' : 'var(--text-main)',
+                cursor: 'pointer',
+                fontWeight: 700,
+              }}
+            >
+              {page}
+            </button>
+          ))}
+
+          <button
+            type="button"
+            onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+            disabled={currentPage === totalPages}
+            style={{
+              padding: '0.45rem 0.8rem',
+              border: '1px solid var(--border-color, #374151)',
+              borderRadius: '6px',
+              background: currentPage === totalPages ? 'rgba(255,255,255,0.05)' : 'transparent',
+              color: currentPage === totalPages ? 'var(--text-muted, #6b7280)' : 'var(--text-main)',
+              cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+              fontWeight: 600,
+            }}
+          >
+            Next
+          </button>
         </div>
       )}
 
