@@ -21,8 +21,6 @@ import {
   Trash2,
 } from 'lucide-react';
 import { ProjectDetailsModal } from './ProjectDetailsModal';
-import TaskScheduleSlider from './TaskScheduleSlider';
-import { fetchBackendProjects, authenticatedFetch, getApiBaseUrl } from '../lib/api';
 
 interface Project {
   id: string;
@@ -232,166 +230,42 @@ export const ProjectPlanningView: React.FC<
   const taskAllocatedHoursRefs =
     useRef<Record<number, HTMLInputElement | null>>({});
 
-  const openDatePicker = (e: React.MouseEvent<HTMLInputElement>) => {
-    try {
-      if ('showPicker' in HTMLInputElement.prototype) {
-        (e.currentTarget as any).showPicker();
-      }
-    } catch (err) {
-      // Fallback for browsers that don't support showPicker()
-    }
-  };
-
-  const formatDisplayDate = (dateStr?: string) => {
-    if (!dateStr) return '—';
-    try {
-      const date = new Date(dateStr);
-      if (isNaN(date.getTime())) return dateStr;
-      return date.toLocaleDateString('en-GB', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-      });
-    } catch {
-      return dateStr;
-    }
-  };
-
-  const handleDeleteProject = async (project: any) => {
-    const projectName =
-      project.customer_name ||
-      project.customerName ||
-      project.project_name ||
-      project.projectName ||
-      'this project';
-
-    const confirmed = window.confirm(
-      `Are you sure you want to delete ${projectName}?\n\nThis action cannot be undone.`
-    );
-
-    if (!confirmed) return;
-
-    const remainingProjects = projects.filter(
-      (item: any) => String(item.id) !== String(project.id)
-    );
-
-    const updatedProjects = remainingProjects.map(
-      (item: any, index: number) => ({
-        ...item,
-        serialNo: index + 1,
-      })
-    );
-
-    setProjects(updatedProjects);
-
-    localStorage.setItem(
-      'sms_project_planning',
-      JSON.stringify(updatedProjects)
-    );
-
-    try {
-      const response = await fetch(
-        `${getApiBaseUrl()}/projects/${encodeURIComponent(String(project.id))}/`,
-        {
-          method: 'DELETE',
-        }
-      );
-
-      if (!response.ok) {
-        console.warn(
-          'Backend project deletion was not completed:',
-          response.status
-        );
-      }
-    } catch (error) {
-      console.warn(
-        'Backend project deletion unavailable; local project was deleted:',
-        error
-      );
-    }
-  };
-
   /*
    * ============================================================
    * LOAD PROJECTS
    * ============================================================
    */
 
-  const loadProjects = async () => {
-    try {
-      const backendProjects = await fetchBackendProjects();
-      if (backendProjects && Array.isArray(backendProjects) && backendProjects.length > 0) {
-        const formattedProjects = backendProjects.map((bp: any, index: number) => {
-          const mainTask = bp.tasks?.[0] || {};
-          const cName = bp.customer_name || bp.project_name || 'Project';
-          const wbs = bp.wbs_no || bp.project_number || '';
-          return {
-            id: String(bp.id),
-            serialNo: index + 1,
-            customerName: cName,
-            customer_name: cName,
-            wbsNo: wbs,
-            wbs_no: wbs,
-            projectCode: bp.project_code || wbs,
-            project_code: bp.project_code || wbs,
-            location: bp.location || mainTask.location || '',
-            projectName: bp.project_name || cName,
-            project_name: bp.project_name || cName,
-            projectNumber: bp.project_number || wbs,
-            project_number: bp.project_number || wbs,
-            equipmentName: bp.equipment_name || '',
-            equipmentWeight: bp.equipment_weight || '',
-            description: bp.description || '',
-            startDate: bp.zero_date || bp.startDate || '',
-            endDate: bp.cdd || bp.endDate || '',
-            projectManager: bp.project_manager || '',
-            task: mainTask.task_name || 'Welding',
-            plannedHours: Number(bp.total_planned_hours) || 0,
-            total_planned_hours: Number(bp.total_planned_hours) || 0,
-            priority: bp.priority || 'Medium',
-            status: bp.status || 'Planned',
-            tasks: bp.tasks || [],
-          };
-        });
+  const loadProjects = () => {
+  try {
+    const saved = localStorage.getItem('sms_project_planning');
 
-        setProjects(formattedProjects);
-        localStorage.setItem(
-          'sms_project_planning',
-          JSON.stringify(formattedProjects)
-        );
-        return;
-      }
-    } catch (err) {
-      console.warn('Backend API fetch projects warning:', err);
+    if (saved) {
+      const parsedProjects = JSON.parse(saved);
+
+      // Add serial numbers to old projects that don't have one
+      const projectsWithSerialNo = parsedProjects.map(
+        (project: any, index: number) => ({
+          ...project,
+          serialNo:
+            typeof project.serialNo === 'number'
+              ? project.serialNo
+              : index + 1,
+        })
+      );
+
+      setProjects(projectsWithSerialNo);
+
+      // Save migrated projects back to localStorage
+      localStorage.setItem(
+        'sms_project_planning',
+        JSON.stringify(projectsWithSerialNo)
+      );
     }
-
-    try {
-      const saved = localStorage.getItem('sms_project_planning');
-
-      if (saved) {
-        const parsedProjects = JSON.parse(saved);
-
-        const projectsWithSerialNo = parsedProjects.map(
-          (project: any, index: number) => ({
-            ...project,
-            serialNo:
-              typeof project.serialNo === 'number'
-                ? project.serialNo
-                : index + 1,
-          })
-        );
-
-        setProjects(projectsWithSerialNo);
-
-        localStorage.setItem(
-          'sms_project_planning',
-          JSON.stringify(projectsWithSerialNo)
-        );
-      }
-    } catch (e) {
-      console.error('Failed to load saved projects', e);
-    }
-  };
+  } catch (e) {
+    console.error('Failed to load saved projects', e);
+  }
+};
 
   useEffect(() => {
     loadProjects();
@@ -529,6 +403,24 @@ export const ProjectPlanningView: React.FC<
    * FORM CHANGE
    * ============================================================
    */
+
+  /*
+   * Open the native calendar when the user clicks anywhere
+   * inside the date input, not only on the calendar icon.
+   */
+  const openDatePicker = (
+    e: React.MouseEvent<HTMLInputElement>
+  ) => {
+    const input = e.currentTarget;
+
+    if (typeof input.showPicker === 'function') {
+      try {
+        input.showPicker();
+      } catch {
+        // Ignore browser/security errors and keep native behavior.
+      }
+    }
+  };
 
   const handleChange = (
     e: React.ChangeEvent<
@@ -994,22 +886,26 @@ export const ProjectPlanningView: React.FC<
      * Persist to Django REST API backend
      */
     try {
-      const apiBase = getApiBaseUrl();
-      authenticatedFetch(`${apiBase}/projects/`, {
+      fetch('/api/v1/projects/', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type':
+            'application/json',
         },
-        body: JSON.stringify(newProject),
-      })
-        .then(() => {
-          loadProjects();
-        })
-        .catch((e) =>
-          console.warn('Django API sync note:', e)
-        );
+        body: JSON.stringify(
+          newProject
+        ),
+      }).catch((e) =>
+        console.warn(
+          'Django API sync note:',
+          e
+        )
+      );
     } catch (err) {
-      console.warn('API sync warning:', err);
+      console.warn(
+        'API sync warning:',
+        err
+      );
     }
 
     if (onProjectCreated) {
@@ -1496,13 +1392,13 @@ export const ProjectPlanningView: React.FC<
                   ref={startDateRef}
                   type="date"
                   name="startDate"
-                  onClick={openDatePicker}
                   value={
                     formData.startDate
                   }
                   onChange={
                     handleChange
                   }
+                  onClick={openDatePicker}
                   className="project-form-input"
                   style={getInputStyle(
                     !!validationErrors.startDate
@@ -1528,13 +1424,13 @@ export const ProjectPlanningView: React.FC<
                   ref={endDateRef}
                   type="date"
                   name="endDate"
-                  onClick={openDatePicker}
                   value={
                     formData.endDate
                   }
                   onChange={
                     handleChange
                   }
+                  onClick={openDatePicker}
                   className="project-form-input"
                   style={getInputStyle(
                     !!validationErrors.endDate
@@ -2175,20 +2071,501 @@ export const ProjectPlanningView: React.FC<
                         ];
 
                       return (
-                        <TaskScheduleSlider
-                          taskTitle={`Task #${activeTaskIdx + 1} (${currentTask?.task_name || 'Task'})`}
-                          taskColor={tColor}
-                          projectMonthSteps={projectMonthSteps}
-                          startIdx={startIdx}
-                          endIdx={endIdx}
-                          durationMonths={dur}
-                          onChange={(newStartIdx, newEndIdx) => {
-                            const newStartDate = projectMonthSteps[newStartIdx]?.dateStr || formData.startDate;
-                            const newDur = Math.max(1, newEndIdx - newStartIdx + 1);
-                            handleTaskFieldChange(activeTaskIdx, 'start_date', newStartDate);
-                            handleTaskFieldChange(activeTaskIdx, 'duration_months', newDur);
+                        <div
+                          style={{
+                            background:
+                              'rgba(10, 16, 30, 0.85)',
+                            padding:
+                              '0.9rem 1rem',
+                            borderRadius:
+                              '10px',
+                            border:
+                              '1px solid rgba(255, 255, 255, 0.12)',
                           }}
-                        />
+                        >
+                          <div
+                            style={{
+                              display:
+                                'flex',
+                              justifyContent:
+                                'space-between',
+                              alignItems:
+                                'center',
+                              marginBottom:
+                                '0.65rem',
+                              flexWrap:
+                                'wrap',
+                              gap: '0.5rem',
+                            }}
+                          >
+                            <div
+                              style={{
+                                fontSize:
+                                  '0.82rem',
+                                fontWeight:
+                                  800,
+                                color:
+                                  tColor,
+                              }}
+                            >
+                              Task #
+                              {activeTaskIdx +
+                                1}{' '}
+                              (
+                              {
+                                currentTask?.task_name
+                              }
+                              ): Start &
+                              End
+                              Schedule
+                              Controller
+                            </div>
+
+                            <div
+                              style={{
+                                fontSize:
+                                  '0.75rem',
+                                fontWeight:
+                                  800,
+                                color:
+                                  '#10b981',
+                                background:
+                                  'rgba(16, 185, 129, 0.12)',
+                                padding:
+                                  '0.2rem 0.65rem',
+                                borderRadius:
+                                  '12px',
+                                border:
+                                  '1px solid rgba(16, 185, 129, 0.3)',
+                              }}
+                            >
+                              {
+                                projectMonthSteps[
+                                  startIdx
+                                ]?.label
+                              }{' '}
+                              ➔{' '}
+                              {
+                                projectMonthSteps[
+                                  endIdx
+                                ]?.label
+                              }{' '}
+                              (
+                              {dur}{' '}
+                              {dur ===
+                              1
+                                ? 'Month'
+                                : 'Months'}
+                              )
+                            </div>
+                          </div>
+
+                          <div
+                            style={{
+                              display:
+                                'grid',
+                              gridTemplateColumns:
+                                '1fr 1fr',
+                              gap: '1.25rem',
+                            }}
+                          >
+                            {/* START MONTH */}
+
+                            <div>
+                              <div
+                                style={{
+                                  display:
+                                    'flex',
+                                  justifyContent:
+                                    'space-between',
+                                  alignItems:
+                                    'center',
+                                  marginBottom:
+                                    '0.35rem',
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    fontSize:
+                                      '0.72rem',
+                                    fontWeight:
+                                      700,
+                                    color:
+                                      'var(--accent-cyan)',
+                                  }}
+                                >
+                                  Start /
+                                  Kickoff
+                                  Month
+                                </span>
+
+                                <span
+                                  style={{
+                                    fontSize:
+                                      '0.7rem',
+                                    fontWeight:
+                                      700,
+                                    color:
+                                      '#fff',
+                                  }}
+                                >
+                                  {
+                                    projectMonthSteps[
+                                      startIdx
+                                    ]?.label
+                                  }
+                                </span>
+                              </div>
+
+                              <input
+                                type="range"
+                                min={0}
+                                max={Math.max(
+                                  0,
+                                  projectMonthSteps.length -
+                                    1
+                                )}
+                                value={
+                                  startIdx
+                                }
+                                onChange={(
+                                  e
+                                ) => {
+                                  const newStartIdx =
+                                    Number(
+                                      e.target
+                                        .value
+                                    );
+
+                                  const newStartDate =
+                                    projectMonthSteps[
+                                      newStartIdx
+                                    ]?.dateStr ||
+                                    formData.startDate;
+
+                                  let newDur =
+                                    endIdx -
+                                    newStartIdx +
+                                    1;
+
+                                  if (
+                                    newDur <
+                                    1
+                                  ) {
+                                    newDur =
+                                      1;
+                                  }
+
+                                  handleTaskFieldChange(
+                                    activeTaskIdx,
+                                    'start_date',
+                                    newStartDate
+                                  );
+
+                                  handleTaskFieldChange(
+                                    activeTaskIdx,
+                                    'duration_months',
+                                    newDur
+                                  );
+                                }}
+                                style={{
+                                  width:
+                                    '100%',
+                                  accentColor:
+                                    tColor,
+                                  cursor:
+                                    'pointer',
+                                  marginBottom:
+                                    '0.35rem',
+                                }}
+                              />
+
+                              <div
+                                style={{
+                                  display:
+                                    'flex',
+                                  gap: '0.25rem',
+                                  overflowX:
+                                    'auto',
+                                  paddingBottom:
+                                    '0.1rem',
+                                }}
+                              >
+                                {projectMonthSteps.map(
+                                  (
+                                    step,
+                                    sIdx
+                                  ) => {
+                                    const isSelected =
+                                      startIdx ===
+                                      sIdx;
+
+                                    return (
+                                      <button
+                                        key={`start_${step.dateStr}_${sIdx}`}
+                                        type="button"
+                                        onClick={() => {
+                                          const newStartDate =
+                                            step.dateStr;
+
+                                          let newDur =
+                                            endIdx -
+                                            sIdx +
+                                            1;
+
+                                          if (
+                                            newDur <
+                                            1
+                                          ) {
+                                            newDur =
+                                              1;
+                                          }
+
+                                          handleTaskFieldChange(
+                                            activeTaskIdx,
+                                            'start_date',
+                                            newStartDate
+                                          );
+
+                                          handleTaskFieldChange(
+                                            activeTaskIdx,
+                                            'duration_months',
+                                            newDur
+                                          );
+                                        }}
+                                        style={{
+                                          padding:
+                                            '0.18rem 0.4rem',
+                                          borderRadius:
+                                            '4px',
+                                          fontSize:
+                                            '0.64rem',
+                                          fontWeight:
+                                            isSelected
+                                              ? 800
+                                              : 600,
+                                          background:
+                                            isSelected
+                                              ? `${tColor}33`
+                                              : 'rgba(255, 255, 255, 0.04)',
+                                          border:
+                                            isSelected
+                                              ? `1px solid ${tColor}`
+                                              : '1px solid rgba(255, 255, 255, 0.08)',
+                                          color:
+                                            isSelected
+                                              ? tColor
+                                              : 'var(--text-muted)',
+                                          cursor:
+                                            'pointer',
+                                          whiteSpace:
+                                            'nowrap',
+                                        }}
+                                      >
+                                        {
+                                          step.label
+                                        }
+                                      </button>
+                                    );
+                                  }
+                                )}
+                              </div>
+                            </div>
+
+                            {/* END MONTH */}
+
+                            <div>
+                              <div
+                                style={{
+                                  display:
+                                    'flex',
+                                  justifyContent:
+                                    'space-between',
+                                  alignItems:
+                                    'center',
+                                  marginBottom:
+                                    '0.35rem',
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    fontSize:
+                                      '0.72rem',
+                                    fontWeight:
+                                      700,
+                                    color:
+                                      'var(--accent-cyan)',
+                                  }}
+                                >
+                                  Completion /
+                                  End Month
+                                </span>
+
+                                <span
+                                  style={{
+                                    fontSize:
+                                      '0.7rem',
+                                    fontWeight:
+                                      700,
+                                    color:
+                                      '#fff',
+                                  }}
+                                >
+                                  {
+                                    projectMonthSteps[
+                                      endIdx
+                                    ]?.label
+                                  }
+                                </span>
+                              </div>
+
+                              <input
+                                type="range"
+                                min={
+                                  startIdx
+                                }
+                                max={Math.max(
+                                  startIdx,
+                                  projectMonthSteps.length -
+                                    1
+                                )}
+                                value={
+                                  endIdx
+                                }
+                                onChange={(
+                                  e
+                                ) => {
+                                  const newEndIdx =
+                                    Number(
+                                      e.target
+                                        .value
+                                    );
+
+                                  const newDur =
+                                    Math.max(
+                                      1,
+                                      newEndIdx -
+                                        startIdx +
+                                        1
+                                    );
+
+                                  handleTaskFieldChange(
+                                    activeTaskIdx,
+                                    'duration_months',
+                                    newDur
+                                  );
+                                }}
+                                style={{
+                                  width:
+                                    '100%',
+                                  accentColor:
+                                    tColor,
+                                  cursor:
+                                    'pointer',
+                                  marginBottom:
+                                    '0.35rem',
+                                }}
+                              />
+
+                              <div
+                                style={{
+                                  display:
+                                    'flex',
+                                  gap: '0.25rem',
+                                  overflowX:
+                                    'auto',
+                                  paddingBottom:
+                                    '0.1rem',
+                                }}
+                              >
+                                {projectMonthSteps.map(
+                                  (
+                                    step,
+                                    sIdx
+                                  ) => {
+                                    const isDisabled =
+                                      sIdx <
+                                      startIdx;
+
+                                    const isSelected =
+                                      endIdx ===
+                                      sIdx;
+
+                                    return (
+                                      <button
+                                        key={`end_${step.dateStr}_${sIdx}`}
+                                        type="button"
+                                        disabled={
+                                          isDisabled
+                                        }
+                                        onClick={() => {
+                                          if (
+                                            isDisabled
+                                          )
+                                            return;
+
+                                          const newDur =
+                                            Math.max(
+                                              1,
+                                              sIdx -
+                                                startIdx +
+                                                1
+                                            );
+
+                                          handleTaskFieldChange(
+                                            activeTaskIdx,
+                                            'duration_months',
+                                            newDur
+                                          );
+                                        }}
+                                        style={{
+                                          padding:
+                                            '0.18rem 0.4rem',
+                                          borderRadius:
+                                            '4px',
+                                          fontSize:
+                                            '0.64rem',
+                                          fontWeight:
+                                            isSelected
+                                              ? 800
+                                              : 600,
+                                          background:
+                                            isSelected
+                                              ? `${tColor}33`
+                                              : 'rgba(255, 255, 255, 0.04)',
+                                          border:
+                                            isSelected
+                                              ? `1px solid ${tColor}`
+                                              : '1px solid rgba(255, 255, 255, 0.08)',
+                                          color:
+                                            isSelected
+                                              ? tColor
+                                              : isDisabled
+                                              ? 'rgba(255,255,255,0.2)'
+                                              : 'var(--text-muted)',
+                                          cursor:
+                                            isDisabled
+                                              ? 'not-allowed'
+                                              : 'pointer',
+                                          whiteSpace:
+                                            'nowrap',
+                                          opacity:
+                                            isDisabled
+                                              ? 0.4
+                                              : 1,
+                                        }}
+                                      >
+                                        {
+                                          step.label
+                                        }
+                                      </button>
+                                    );
+                                  }
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
                       );
                     })()}
                   </div>
@@ -3396,7 +3773,8 @@ export const ProjectPlanningView: React.FC<
                             Zero:{' '}
                           </span>
 
-                          {formatDisplayDate(project.startDate)}
+                          {project.startDate ||
+                            '—'}
                         </div>
 
                         <div>
@@ -3411,7 +3789,8 @@ export const ProjectPlanningView: React.FC<
                             CDD:{' '}
                           </span>
 
-                          {formatDisplayDate(project.endDate)}
+                          {project.endDate ||
+                            '—'}
                         </div>
                       </td>
 
@@ -3477,86 +3856,50 @@ export const ProjectPlanningView: React.FC<
                           tableCellStyle
                         }
                       >
-                        <div
+                        <button
+                          onClick={() => {
+                            setSelectedProject(
+                              project
+                            );
+
+                            setIsModalOpen(
+                              true
+                            );
+                          }}
                           style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.4rem',
-                            flexWrap: 'wrap',
+                            display:
+                              'inline-flex',
+                            alignItems:
+                              'center',
+                            gap: '0.3rem',
+                            padding:
+                              '0.35rem 0.65rem',
+                            background:
+                              'rgba(0, 210, 255, 0.12)',
+                            border:
+                              '1px solid rgba(0, 210, 255, 0.3)',
+                            borderRadius:
+                              '6px',
+                            color:
+                              'var(--accent-cyan)',
+                            fontWeight:
+                              700,
+                            fontSize:
+                              '0.72rem',
+                            cursor:
+                              'pointer',
+                            whiteSpace:
+                              'nowrap',
                           }}
                         >
-                          <button
-                            onClick={() => {
-                              setSelectedProject(
-                                project
-                              );
-
-                              setIsModalOpen(
-                                true
-                              );
-                            }}
-                            style={{
-                              display:
-                                'inline-flex',
-                              alignItems:
-                                'center',
-                              gap: '0.3rem',
-                              padding:
-                                '0.35rem 0.65rem',
-                              background:
-                                'rgba(0, 210, 255, 0.12)',
-                              border:
-                                '1px solid rgba(0, 210, 255, 0.3)',
-                              borderRadius:
-                                '6px',
-                              color:
-                                'var(--accent-cyan)',
-                              fontWeight:
-                                700,
-                              fontSize:
-                                '0.72rem',
-                              cursor:
-                                'pointer',
-                              whiteSpace:
-                                'nowrap',
-                            }}
-                          >
-                            <Edit
-                              size={
-                                13
-                              }
-                            />
-                            View /
-                            Edit
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteProject(project);
-                            }}
-                            title="Delete project"
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '0.3rem',
-                              padding: '0.35rem 0.55rem',
-                              background: 'rgba(239, 68, 68, 0.10)',
-                              border: '1px solid rgba(239, 68, 68, 0.35)',
-                              borderRadius: '6px',
-                              color: '#f87171',
-                              fontWeight: 700,
-                              fontSize: '0.72rem',
-                              cursor: 'pointer',
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
-                            <Trash2 size={13} />
-                            Delete
-                          </button>
-                        </div>
+                          <Edit
+                            size={
+                              13
+                            }
+                          />
+                          View /
+                          Edit
+                        </button>
                       </td>
                     </tr>
                   );
