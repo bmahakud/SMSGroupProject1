@@ -84,6 +84,43 @@ def extract_values(sheet, row_index):
 # ==========================================================
 
 def preprocess_summary(df):
+    # Direct dictionary or pre-structured DataFrame payload from Django DB
+    if isinstance(df, dict) or (isinstance(df, pd.DataFrame) and "Month" in df.columns):
+        if isinstance(df, dict):
+            dashboard_df = pd.DataFrame(df)
+        else:
+            dashboard_df = df.copy()
+
+        for col in ["Welding", "Machining", "Assembly", "Roll Refurbishment", "Plating"]:
+            if col not in dashboard_df.columns:
+                dashboard_df[col] = 0.0
+
+        dashboard_df["Planned Hours"] = (
+            dashboard_df["Welding"] +
+            dashboard_df["Machining"] +
+            dashboard_df["Assembly"] +
+            dashboard_df["Roll Refurbishment"] +
+            dashboard_df["Plating"]
+        )
+
+        if "Capacity" in dashboard_df.columns:
+            dashboard_df["NPK Capacity"] = dashboard_df["Capacity"]
+        elif "NPK Capacity" in dashboard_df.columns:
+            dashboard_df["Capacity"] = dashboard_df["NPK Capacity"]
+        else:
+            dashboard_df["NPK Capacity"] = dashboard_df["Planned Hours"]
+            dashboard_df["Capacity"] = dashboard_df["Planned Hours"]
+
+        if "Utilization" not in dashboard_df.columns or dashboard_df["Utilization"].sum() == 0:
+            cap_series = dashboard_df["Capacity"].replace(0, np.nan)
+            dashboard_df["Utilization"] = ((dashboard_df["Planned Hours"] / cap_series) * 100).fillna(0.0).round(1)
+
+        for col in ["Group Company", "Contract MFG"]:
+            if col not in dashboard_df.columns:
+                dashboard_df[col] = 0.0
+
+        dashboard_df = dashboard_df.round(1)
+        return dashboard_df
 
     months = [
         "Jan-26",

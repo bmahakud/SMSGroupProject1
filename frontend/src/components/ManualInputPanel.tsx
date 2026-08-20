@@ -5,13 +5,22 @@ import {
   Save,
   CheckCircle,
   Sliders,
+  Plus,
+  Trash2,
+  Bookmark,
+  FolderCheck,
+  RefreshCw,
 } from "lucide-react";
 
 import {
   calculateManualPlanning,
   fetchManualConfig,
-  saveManualConfig,
   ManualCalculationResponse,
+  CapacityPlan,
+  fetchCapacityPlans,
+  saveCapacityPlan,
+  activateCapacityPlan,
+  deleteCapacityPlan,
 } from "../lib/api";
 import { MonthlyTaskBreakdown } from "./MonthlyTaskBreakdown";
 
@@ -94,101 +103,112 @@ export const ManualInputPanel: React.FC<ManualInputPanelProps> = ({
   const [isCalculating, setIsCalculating] =
     useState<boolean>(false);
 
-  /*
-   * ---------------------------------------------------------
-   * LOAD SAVED CONFIGURATION
-   * ---------------------------------------------------------
-   */
+  /* Capacity Plan Version Storage State */
+  const [plans, setPlans] = useState<CapacityPlan[]>([]);
+  const [activePlanId, setActivePlanId] = useState<string | null>(null);
+  const [showNewPlanModal, setShowNewPlanModal] = useState<boolean>(false);
+  const [newPlanNameInput, setNewPlanNameInput] = useState<string>("");
+
+  const loadPlans = async () => {
+    try {
+      const res = await fetchCapacityPlans();
+      if (res && res.plans && res.plans.length > 0) {
+        setPlans(res.plans);
+        const activeId = res.active_plan_id || res.plans[0].plan_id;
+        setActivePlanId(activeId);
+
+        const activePlan = res.plans.find(p => p.plan_id === activeId) || res.plans[0];
+        if (activePlan && activePlan.tasks && activePlan.tasks.length > 0) {
+          setTasks(activePlan.tasks);
+          setYear(activePlan.year || 2026);
+          const total = activePlan.tasks.reduce(
+            (sum: number, task: DepartmentTaskInput) => sum + (Number(task.hours) || 0),
+            0
+          );
+          setAnnualHours(total);
+        }
+      }
+    } catch (err) {
+      console.warn("Unable to load stored capacity plans:", err);
+    }
+  };
 
   useEffect(() => {
-    let isMounted = true;
-
-    const localSaved = localStorage.getItem(
-      "sms_capacity_planning_config"
-    );
-
-    if (localSaved) {
-      try {
-        const parsed = JSON.parse(localSaved);
-
-        if (parsed.tasks && parsed.tasks.length > 0) {
-          setTasks(parsed.tasks);
-
-          const total = parsed.tasks.reduce(
-            (sum: number, task: DepartmentTaskInput) =>
-              sum + (Number(task.hours) || 0),
-            0
-          );
-
-          setAnnualHours(total);
-        }
-
-        if (parsed.year) {
-          setYear(parsed.year);
-        }
-      } catch (error) {
-        console.warn(
-          "Error reading local storage capacity config:",
-          error
-        );
-      }
-    }
-
-    async function loadDbConfig() {
-      try {
-        const dbConfig = await fetchManualConfig();
-
-        if (
-          isMounted &&
-          dbConfig &&
-          dbConfig.tasks &&
-          dbConfig.tasks.length > 0
-        ) {
-          setTasks(dbConfig.tasks);
-          setYear(dbConfig.year || 2026);
-
-          const total = dbConfig.tasks.reduce(
-            (sum: number, task: DepartmentTaskInput) =>
-              sum + (Number(task.hours) || 0),
-            0
-          );
-
-          setAnnualHours(total);
-        }
-      } catch (error) {
-        console.warn(
-          "Unable to load manual configuration:",
-          error
-        );
-      }
-    }
-
-    loadDbConfig();
-
-    return () => {
-      isMounted = false;
-    };
+    loadPlans();
   }, []);
 
-  /*
-   * ---------------------------------------------------------
-   * SAVE CONFIGURATION
-   * ---------------------------------------------------------
-   */
+  const handleSelectPlan = async (planId: string) => {
+    if (planId === activePlanId) return;
+    setSaveStatus("saving");
+    const ok = await activateCapacityPlan(planId);
+    if (ok) {
+      setActivePlanId(planId);
+      const selected = plans.find(p => p.plan_id === planId);
+      if (selected && selected.tasks) {
+        setTasks(selected.tasks);
+        setYear(selected.year || 2026);
+        const total = selected.tasks.reduce(
+          (sum: number, task: DepartmentTaskInput) => sum + (Number(task.hours) || 0),
+          0
+        );
+        setAnnualHours(total);
+      }
+      setSaveStatus("saved");
+      setTimeout(() => setSaveStatus("idle"), 2500);
+      loadPlans();
+    } else {
+      setSaveStatus("idle");
+    }
+  };
 
-  const persistConfig = (
-    updatedYear: number,
-    updatedTasks: DepartmentTaskInput[]
-  ) => {
-    localStorage.setItem(
-      "sms_capacity_planning_config",
-      JSON.stringify({
-        year: updatedYear,
-        tasks: updatedTasks,
-      })
-    );
+  const handleSaveCurrentPlan = async () => {
+    setSaveStatus("saving");
+    const currentPlan = plans.find(p => p.plan_id === activePlanId);
+    const res = await saveCapacityPlan({
+      plan_id: activePlanId || undefined,
+      name: currentPlan?.name || `Capacity Plan ${year}`,
+      year,
+      tasks,
+      is_new: false,
+    });
 
-    saveManualConfig(updatedYear, updatedTasks);
+    if (res && res.status === "success") {
+      setSaveStatus("saved");
+      setTimeout(() => setSaveStatus("idle"), 2500);
+      loadPlans();
+    } else {
+      setSaveStatus("idle");
+    }
+  };
+
+  const handleCreateNewPlan = async () => {
+    if (!newPlanNameInput.trim()) return;
+    setSaveStatus("saving");
+    const res = await saveCapacityPlan({
+      name: newPlanNameInput.trim(),
+      year,
+      tasks,
+      is_new: true,
+    });
+
+    if (res && res.status === "success" && res.plan) {
+      setNewPlanNameInput("");
+      setShowNewPlanModal(false);
+      setSaveStatus("saved");
+      setTimeout(() => setSaveStatus("idle"), 2500);
+      loadPlans();
+    } else {
+      setSaveStatus("idle");
+    }
+  };
+
+  const handleDeletePlan = async (planId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm("Are you sure you want to delete this capacity plan?")) return;
+    const ok = await deleteCapacityPlan(planId);
+    if (ok) {
+      loadPlans();
+    }
   };
 
   /*
@@ -434,8 +454,6 @@ export const ManualInputPanel: React.FC<ManualInputPanelProps> = ({
   const handleYearChange = (newYear: number) => {
     setYear(newYear);
 
-    persistConfig(newYear, tasks);
-
     if (onInputsChange) {
       onInputsChange(annualHours, tasks);
     }
@@ -469,8 +487,6 @@ export const ManualInputPanel: React.FC<ManualInputPanelProps> = ({
     setTasks(updatedTasks);
     setAnnualHours(newTotal);
 
-    persistConfig(year, updatedTasks);
-
     if (onInputsChange) {
       onInputsChange(
         newTotal,
@@ -486,35 +502,7 @@ export const ManualInputPanel: React.FC<ManualInputPanelProps> = ({
    */
 
   const handleSave = async () => {
-    try {
-      setSaveStatus("saving");
-
-      await saveManualConfig(
-        year,
-        tasks
-      );
-
-      localStorage.setItem(
-        "sms_capacity_planning_config",
-        JSON.stringify({
-          year,
-          tasks,
-        })
-      );
-
-      setSaveStatus("saved");
-
-      setTimeout(() => {
-        setSaveStatus("idle");
-      }, 3000);
-    } catch (error) {
-      console.error(
-        "Error saving manual configuration:",
-        error
-      );
-
-      setSaveStatus("idle");
-    }
+    await handleSaveCurrentPlan();
   };
 
   /*
@@ -622,46 +610,205 @@ export const ManualInputPanel: React.FC<ManualInputPanelProps> = ({
               marginTop: "0.35rem",
             }}
           >
-            Configure annual workload hours
-            and planning year. Monthly
-            calculations are displayed on
-            the Summary page.
+            Configure annual workload hours and planning year. Switch between saved capacity plan versions or save new target scenarios.
           </p>
         </div>
+      </div>
 
-        <button
-          onClick={handleSave}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "0.5rem",
-            background:
-              saveStatus === "saved"
-                ? "var(--accent-emerald)"
-                : "linear-gradient(135deg, var(--accent-cyan), var(--accent-blue))",
-            color: "#ffffff",
-            border: "none",
-            padding: "0.5rem 1.1rem",
-            borderRadius: "8px",
-            fontWeight: 700,
-            fontSize: "0.85rem",
-            cursor: "pointer",
-            boxShadow:
-              "0 0 15px rgba(0, 210, 255, 0.3)",
-          }}
-        >
-          {saveStatus === "saved" ? (
-            <CheckCircle size={16} />
-          ) : (
-            <Save size={16} />
-          )}
+      {/* SAVED CAPACITY PLANS TOOLBAR */}
+      <div
+        className="glass-panel"
+        style={{
+          background: "linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(10, 16, 30, 0.85))",
+          border: "1px solid rgba(0, 210, 255, 0.3)",
+          borderRadius: "12px",
+          padding: "1rem 1.25rem",
+          marginBottom: "1.25rem",
+          boxShadow: "0 4px 20px rgba(0, 0, 0, 0.3)",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "1rem" }}>
+          
+          {/* Active Plan Info & Selector */}
+          <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
+            <div style={{ padding: "0.5rem", background: "rgba(0, 210, 255, 0.15)", borderRadius: "10px", display: "flex", alignItems: "center" }}>
+              <Bookmark size={22} color="var(--accent-cyan)" />
+            </div>
 
-          {saveStatus === "saved"
-            ? "Saved to Database!"
-            : saveStatus === "saving"
-            ? "Saving..."
-            : "Save Manual Inputs"}
-        </button>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <span style={{ fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", color: "var(--text-muted)", letterSpacing: "0.05em" }}>
+                  Stored Capacity Plan Version
+                </span>
+                {plans.find(p => p.plan_id === activePlanId)?.is_active && (
+                  <span style={{ background: "rgba(52, 211, 153, 0.2)", color: "#34D399", border: "1px solid rgba(52, 211, 153, 0.4)", fontSize: "0.65rem", fontWeight: 800, padding: "0.15rem 0.5rem", borderRadius: "10px" }}>
+                    ACTIVE PLAN
+                  </span>
+                )}
+              </div>
+
+              {/* Plan Switcher Dropdown */}
+              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginTop: "0.25rem" }}>
+                <select
+                  value={activePlanId || ""}
+                  onChange={(e) => handleSelectPlan(e.target.value)}
+                  style={{
+                    background: "#0F172A",
+                    color: "#FFFFFF",
+                    border: "1px solid var(--accent-cyan)",
+                    borderRadius: "8px",
+                    padding: "0.45rem 0.85rem",
+                    fontSize: "0.95rem",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    outline: "none",
+                    minWidth: "260px",
+                  }}
+                >
+                  {plans.map((p) => (
+                    <option key={p.plan_id} value={p.plan_id}>
+                      {p.name} ({p.year}) — {p.total_hours ? p.total_hours.toLocaleString() : '0'} hrs
+                    </option>
+                  ))}
+                </select>
+
+                <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                  Horizon: <strong style={{ color: "#FFF" }}>{plans.find(p => p.plan_id === activePlanId)?.horizon || `Aug ${year} - Jul ${year+1}`}</strong>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+            <button
+              onClick={() => setShowNewPlanModal(true)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.4rem",
+                background: "rgba(0, 210, 255, 0.15)",
+                color: "var(--accent-cyan)",
+                border: "1px solid rgba(0, 210, 255, 0.4)",
+                padding: "0.5rem 0.95rem",
+                borderRadius: "8px",
+                fontWeight: 700,
+                fontSize: "0.825rem",
+                cursor: "pointer",
+                transition: "all 0.2s ease",
+              }}
+            >
+              <Plus size={16} />
+              Create New Plan
+            </button>
+
+            <button
+              onClick={handleSaveCurrentPlan}
+              disabled={saveStatus === "saving"}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.4rem",
+                background: saveStatus === "saved"
+                  ? "var(--accent-emerald)"
+                  : "linear-gradient(135deg, var(--accent-cyan), var(--accent-blue))",
+                color: "#ffffff",
+                border: "none",
+                padding: "0.5rem 1.1rem",
+                borderRadius: "8px",
+                fontWeight: 700,
+                fontSize: "0.825rem",
+                cursor: "pointer",
+                boxShadow: "0 0 15px rgba(0, 210, 255, 0.3)",
+              }}
+            >
+              {saveStatus === "saved" ? <CheckCircle size={16} /> : <Save size={16} />}
+              {saveStatus === "saved" ? "Plan Saved!" : saveStatus === "saving" ? "Saving..." : "Save Active Plan"}
+            </button>
+
+            {plans.length > 1 && (
+              <button
+                onClick={(e) => activePlanId && handleDeletePlan(activePlanId, e)}
+                title="Delete current plan"
+                style={{
+                  background: "rgba(239, 68, 68, 0.15)",
+                  color: "#EF4444",
+                  border: "1px solid rgba(239, 68, 68, 0.3)",
+                  padding: "0.5rem",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                }}
+              >
+                <Trash2 size={16} />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Modal / Inline input for creating a new capacity plan version */}
+        {showNewPlanModal && (
+          <div
+            style={{
+              marginTop: "1rem",
+              paddingTop: "1rem",
+              borderTop: "1px dashed rgba(255, 255, 255, 0.15)",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.75rem",
+            }}
+          >
+            <input
+              type="text"
+              placeholder="Enter plan title (e.g. Capacity Plan 2027 or 2026 Scenario B)"
+              value={newPlanNameInput}
+              onChange={(e) => setNewPlanNameInput(e.target.value)}
+              style={{
+                flex: 1,
+                background: "#0F172A",
+                color: "#FFFFFF",
+                border: "1px solid var(--accent-cyan)",
+                borderRadius: "8px",
+                padding: "0.55rem 0.85rem",
+                fontSize: "0.85rem",
+                outline: "none",
+              }}
+              onKeyDown={(e) => e.key === 'Enter' && handleCreateNewPlan()}
+            />
+
+            <button
+              onClick={handleCreateNewPlan}
+              style={{
+                background: "var(--accent-emerald)",
+                color: "#FFF",
+                border: "none",
+                padding: "0.55rem 1.1rem",
+                borderRadius: "8px",
+                fontWeight: 700,
+                fontSize: "0.825rem",
+                cursor: "pointer",
+              }}
+            >
+              Save & Activate Plan
+            </button>
+
+            <button
+              onClick={() => setShowNewPlanModal(false)}
+              style={{
+                background: "transparent",
+                color: "var(--text-muted)",
+                border: "1px solid var(--border-color)",
+                padding: "0.55rem 0.85rem",
+                borderRadius: "8px",
+                fontSize: "0.825rem",
+                cursor: "pointer",
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        )}
       </div>
 
       {/* INPUT AREA */}

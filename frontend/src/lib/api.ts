@@ -386,17 +386,79 @@ export async function fetchManualConfig(): Promise<{ year: number; tasks: any[] 
   }
 }
 
-export async function saveManualConfig(year: number, tasks: any[]): Promise<boolean> {
+export interface CapacityPlan {
+  id?: number;
+  plan_id: string;
+  name: string;
+  year: number;
+  horizon: string;
+  tasks: any[];
+  total_hours: number;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export async function fetchCapacityPlans(): Promise<{ active_plan_id: string | null; plans: CapacityPlan[] } | null> {
   try {
     const apiBase = getApiBaseUrl();
-    const res = await authenticatedFetch(`${apiBase}/versions/save_manual_config/`, {
+    const res = await authenticatedFetch(`${apiBase}/versions/list_capacity_plans/`);
+    if (!res.ok) throw new Error('Failed to fetch capacity plans');
+    return await res.json();
+  } catch (err) {
+    console.warn('API error fetching capacity plans:', err);
+    return null;
+  }
+}
+
+export async function saveCapacityPlan(data: {
+  plan_id?: string;
+  name?: string;
+  year: number;
+  tasks: any[];
+  is_new?: boolean;
+}): Promise<{ status: string; plan?: CapacityPlan; message?: string } | null> {
+  try {
+    const apiBase = getApiBaseUrl();
+    const res = await authenticatedFetch(`${apiBase}/versions/save_capacity_plan/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ year, tasks })
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error('Failed to save capacity plan');
+    return await res.json();
+  } catch (err) {
+    console.warn('API error saving capacity plan:', err);
+    return null;
+  }
+}
+
+export async function activateCapacityPlan(plan_id: string): Promise<boolean> {
+  try {
+    const apiBase = getApiBaseUrl();
+    const res = await authenticatedFetch(`${apiBase}/versions/activate_capacity_plan/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ plan_id })
     });
     return res.ok;
   } catch (err) {
-    console.warn('API error saving manual config:', err);
+    console.warn('API error activating capacity plan:', err);
+    return false;
+  }
+}
+
+export async function deleteCapacityPlan(plan_id: string): Promise<boolean> {
+  try {
+    const apiBase = getApiBaseUrl();
+    const res = await authenticatedFetch(`${apiBase}/versions/delete_capacity_plan/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ plan_id })
+    });
+    return res.ok;
+  } catch (err) {
+    console.warn('API error deleting capacity plan:', err);
     return false;
   }
 }

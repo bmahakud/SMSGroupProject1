@@ -190,6 +190,17 @@ export default function Home() {
     loadInitialData();
   }, [isAuthenticated]);
 
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    if (currentView === 'dashboard') {
+      fetchLatestPlanningVersion().then(latestVer => {
+        if (latestVer) {
+          setSelectedVersion(latestVer);
+        }
+      }).catch(err => console.warn('Failed refreshing latest version on dashboard view:', err));
+    }
+  }, [currentView, isAuthenticated]);
+
   const handleLoginSuccess = (
     user: AuthUser,
     access: string,

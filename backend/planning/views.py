@@ -6,9 +6,9 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
-from .models import PlanningVersion, Benchmark, ManualInputConfig, Project, ProjectTask, ProjectTaskMonthlyDistribution
+from .models import PlanningVersion, Benchmark, ManualInputConfig, CapacityPlan, Project, ProjectTask, ProjectTaskMonthlyDistribution
 from .serializers import (
-    PlanningVersionSerializer, BenchmarkSerializer, ProjectSerializer,
+    PlanningVersionSerializer, BenchmarkSerializer, CapacityPlanSerializer, ProjectSerializer,
     ProjectTaskSerializer, ProjectTaskMonthlyDistributionSerializer,
     WeldingCalculationPreviewSerializer
 )
@@ -25,39 +25,39 @@ MONTHS_AUG_2026 = [
 
 DEFAULT_DEPARTMENTS = {
     "production": {
-        "capacityHours": [12000, 12000, 12500, 12000, 11500, 12000, 12000, 12500, 12000, 12000, 12500, 12000],
-        "loadHours":     [10500, 11200, 11800, 12400, 10900, 10800, 11400, 11900, 11100, 11600, 12100, 11300],
-        "ordersCount":   [145, 152, 160, 168, 140, 142, 150, 158, 149, 155, 162, 151]
+        "capacityHours": [9333, 9333, 9333, 9333, 9333, 9333, 9333, 9333, 9333, 9333, 9333, 9333],
+        "loadHours":     [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        "ordersCount":   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
     },
     "welding": {
-        "capacityHours": [4500, 4500, 4500, 4500, 4200, 4500, 4500, 4500, 4500, 4500, 4500, 4500],
-        "groupCompany":  [2200, 2400, 2500, 2600, 2100, 2300, 2450, 2550, 2350, 2480, 2520, 2410],
-        "contractMfg":   [1800, 1750, 1850, 1900, 1700, 1800, 1820, 1860, 1790, 1840, 1880, 1810],
-        "laborSupply":   [4400, 4450, 4500, 4550, 4200, 4450, 4480, 4520, 4460, 4490, 4510, 4470]
+        "capacityHours": [2083, 2083, 2083, 2083, 2083, 2083, 2083, 2083, 2083, 2083, 2083, 2083],
+        "groupCompany":  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        "contractMfg":   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        "laborSupply":   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
     },
     "machining": {
-        "capacityHours": [5200, 5200, 5200, 5200, 4900, 5200, 5200, 5200, 5200, 5200, 5200, 5200],
-        "millingLoad":   [2600, 2750, 2850, 3010, 2500, 2650, 2780, 2890, 2710, 2820, 2940, 2760],
-        "latheLoad":     [2200, 2150, 2220, 2350, 2100, 2180, 2210, 2260, 2190, 2240, 2300, 2210]
+        "capacityHours": [2667, 2667, 2667, 2667, 2667, 2667, 2667, 2667, 2667, 2667, 2667, 2667],
+        "millingLoad":   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        "latheLoad":     [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
     },
     "rr": {
-        "capacityHours": [3100, 3100, 3100, 3100, 2900, 3100, 3100, 3100, 3100, 3100, 3100, 3100],
-        "refurbLoad":    [2700, 2800, 2910, 2980, 2600, 2720, 2830, 2890, 2780, 2850, 2920, 2810]
+        "capacityHours": [1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500],
+        "refurbLoad":    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
     },
     "plating": {
-        "capacityHours": [2200, 2200, 2200, 2200, 2000, 2200, 2200, 2200, 2200, 2200, 2200, 2200],
-        "platingLoad":   [1850, 1920, 1990, 2080, 1780, 1860, 1940, 2010, 1910, 1970, 2030, 1930]
+        "capacityHours": [1250, 1250, 1250, 1250, 1250, 1250, 1250, 1250, 1250, 1250, 1250, 1250],
+        "platingLoad":   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
     },
     "service_machining": {
-        "capacityHours": [1800, 1800, 1800, 1800, 1600, 1800, 1800, 1800, 1800, 1800, 1800, 1800],
-        "serviceLoad":   [1420, 1510, 1580, 1650, 1380, 1460, 1520, 1590, 1490, 1540, 1610, 1500]
+        "capacityHours": [1800, 1800, 1800, 1800, 1800, 1800, 1800, 1800, 1800, 1800, 1800, 1800],
+        "serviceLoad":   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
     },
     "scb": {
-        "groupCompany":  [5800, 6100, 6400, 6700, 5400, 5900, 6200, 6500, 6000, 6300, 6600, 6100],
-        "contractMfg":   [4200, 4350, 4500, 4700, 4100, 4250, 4400, 4550, 4300, 4450, 4600, 4350],
-        "loi":           [1200, 1150, 1300, 1400, 1100, 1180, 1250, 1320, 1220, 1280, 1350, 1240],
-        "smi":           [2100, 2150, 2200, 2250, 2000, 2120, 2180, 2220, 2140, 2190, 2240, 2160],
-        "serviceBasic":  [950,  980,  1020, 1050, 900,  940,  990,  1010, 970,  1000, 1030, 980]
+        "groupCompany":  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        "contractMfg":   [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        "loi":           [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        "smi":           [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        "serviceBasic":  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
     }
 }
 
@@ -65,48 +65,145 @@ import os
 import sys
 import subprocess
 
-def run_graph_automation(file_path=None):
+def build_live_graph_data():
+    months = MONTHS_AUG_2026
+
+    # 1. CAPACITY HOURS (Total NPK Capacity across 12 months derived from ManualInputConfig)
+    total_capacity = [9333.0] * 12
+
+    try:
+        config = ManualInputConfig.objects.first()
+        if config and config.tasks:
+            import calendar
+            yr = config.year or 2026
+            total_days = 366 if calendar.isleap(yr) else 365
+            # Rolling 12-month days count starting Aug
+            month_days = [31, 30, 31, 30, 31, 31, 28 if not calendar.isleap(yr+1) else 29, 31, 30, 31, 30, 31]
+            
+            custom_cap = [0.0] * 12
+            for task in config.tasks:
+                m_hours = task.get("monthlyHours", [])
+                annual = float(task.get("annualHours", 0) or task.get("hours", 0) or 0)
+                if m_hours and len(m_hours) == 12 and sum(m_hours) > 0:
+                    for i in range(12):
+                        custom_cap[i] += float(m_hours[i])
+                elif annual > 0:
+                    daily = annual / float(total_days)
+                    for i in range(12):
+                        custom_cap[i] += daily * month_days[i]
+            if sum(custom_cap) > 0:
+                total_capacity = custom_cap
+    except Exception as e:
+        print(f"Error fetching ManualInputConfig for graph automation: {e}")
+
+    # 2. PLANNED HOURS PER DEPARTMENT FROM PROJECT TASKS
+    dept_planned = {
+        "Welding": [0.0] * 12,
+        "Machining": [0.0] * 12,
+        "Assembly": [0.0] * 12,
+        "Roll Refurbishment": [0.0] * 12,
+        "Plating": [0.0] * 12,
+    }
+
+    try:
+        distributions = ProjectTaskMonthlyDistribution.objects.select_related('task').all()
+        for dist in distributions:
+            task_code = (dist.task.task_code or "").lower()
+            task_name = (dist.task.task_name or "").lower()
+
+            target_dept = "Welding"
+            if "weld" in task_code or "weld" in task_name:
+                target_dept = "Welding"
+            elif "machin" in task_code or "machin" in task_name or "milling" in task_name or "lathe" in task_name:
+                target_dept = "Machining"
+            elif "assembl" in task_code or "assembl" in task_name:
+                target_dept = "Assembly"
+            elif "rr" in task_code or "refurb" in task_name or "roll" in task_name:
+                target_dept = "Roll Refurbishment"
+            elif "plat" in task_code or "plat" in task_name:
+                target_dept = "Plating"
+
+            label = (dist.month_label or "").strip()
+            if label in months:
+                m_idx = months.index(label)
+                dept_planned[target_dept][m_idx] += float(dist.hours)
+    except Exception as e:
+        print(f"Error aggregating ProjectTaskMonthlyDistribution for graph automation: {e}")
+
+    group_company = [0.0] * 12
+    contract_mfg = [0.0] * 12
+
+    data_payload = {
+        "Month": months,
+        "Welding": dept_planned["Welding"],
+        "Machining": dept_planned["Machining"],
+        "Assembly": dept_planned["Assembly"],
+        "Roll Refurbishment": dept_planned["Roll Refurbishment"],
+        "Plating": dept_planned["Plating"],
+        "Capacity": total_capacity,
+        "NPK Capacity": total_capacity,
+        "Group Company": group_company,
+        "Contract MFG": contract_mfg,
+    }
+    return data_payload
+
+
+def run_graph_automation(file_path=None, data_dict=None):
+    if data_dict is None and file_path is None:
+        data_dict = build_live_graph_data()
+
     workspace_root = Path(settings.BASE_DIR).parent
     graph_venv_python = workspace_root / "Graph_Automation" / ".venv" / "Scripts" / "python.exe"
-    
-    cmd_code = "import sys; sys.path.insert(0, 'Graph_Automation/src'); from scb_dashboard.dashboard import create_dashboard; "
-    if file_path:
-        file_path_clean = str(file_path).replace('\\', '/')
-        cmd_code += f"create_dashboard(file_path='{file_path_clean}')"
-    else:
-        cmd_code += "create_dashboard()"
+    if not graph_venv_python.exists():
+        graph_venv_python = workspace_root / "Graph_Automation" / ".venv" / "bin" / "python"
 
     if graph_venv_python.exists():
         try:
+            import json
+            cmd_code = "import sys, json; sys.path.insert(0, 'Graph_Automation/src'); from scb_dashboard.dashboard import create_dashboard; "
+            if data_dict is not None:
+                json_raw = json.dumps(data_dict)
+                # Save temp json payload file to avoid shell escaping issues
+                temp_json_path = workspace_root / "Graph_Automation" / "output" / "temp_live_data.json"
+                temp_json_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(temp_json_path, 'w') as f:
+                    f.write(json_raw)
+                temp_path_clean = str(temp_json_path).replace('\\', '/')
+                cmd_code += f"f=open('{temp_path_clean}', 'r'); data=json.load(f); f.close(); create_dashboard(data_dict=data)"
+            elif file_path:
+                file_path_clean = str(file_path).replace('\\', '/')
+                cmd_code += f"create_dashboard(file_path='{file_path_clean}')"
+            else:
+                cmd_code += "create_dashboard()"
+
             subprocess.run([str(graph_venv_python), "-c", cmd_code], cwd=str(workspace_root), check=True)
             return True
         except Exception as e:
             print(f"Error running Graph_Automation via venv python: {e}")
-    
+
     # Fallback to current python process
     try:
         graph_automation_src = workspace_root / "Graph_Automation" / "src"
         if str(graph_automation_src) not in sys.path:
             sys.path.insert(0, str(graph_automation_src))
         from scb_dashboard.dashboard import create_dashboard
-        create_dashboard(file_path=str(file_path) if file_path else None)
+        create_dashboard(file_path=file_path, data_dict=data_dict)
         return True
     except Exception as e:
         print(f"Error running Graph_Automation direct import: {e}")
         return False
 
 
-def sync_graph_automation_charts(request=None):
+def sync_graph_automation_charts(request=None, force=False):
     workspace_root = Path(settings.BASE_DIR).parent
     graph_out = workspace_root / "Graph_Automation" / "output"
-    graph_outs = workspace_root / "Graph_Automation" / "outputs"
-    
-    scb_dashboard_png = graph_out / "scb_dashboard.png"
-    if not scb_dashboard_png.exists():
-        run_graph_automation()
-
     media_charts = Path(settings.MEDIA_ROOT) / "charts"
     media_charts.mkdir(parents=True, exist_ok=True)
+
+    welding_png = media_charts / "welding_dashboard.png"
+    scb_dashboard_png = graph_out / "scb_dashboard.png"
+    if force or not scb_dashboard_png.exists() or not welding_png.exists():
+        run_graph_automation()
 
     frontend_public_charts = workspace_root / "frontend" / "public" / "media" / "charts"
     if frontend_public_charts.parent.parent.exists():
@@ -114,12 +211,12 @@ def sync_graph_automation_charts(request=None):
 
     mapping = {
         "production": scb_dashboard_png,
-        "welding": graph_out / "charts" / "welding" / "Historical_Welding_Dashboard.png",
-        "machining": graph_outs / "machining" / "Historical_Machining_Dashboard.png",
-        "rr": graph_out / "rr" / "Historical_RR_Dashboard.png",
-        "plating": graph_out / "plating" / "Historical_Plating_Dashboard.png",
+        "welding": graph_out / "charts" / "welding_dashboard.png",
+        "machining": graph_out / "charts" / "machining_dashboard.png",
+        "assembly": graph_out / "charts" / "assembly_dashboard.png",
+        "rr": graph_out / "charts" / "rr_dashboard.png",
+        "plating": graph_out / "charts" / "plating_dashboard.png",
         "scb": scb_dashboard_png,
-        "service_machining": graph_out / "charts" / "welding" / "Welding_Dashboard.png",
     }
 
     urls = {}
@@ -172,15 +269,13 @@ def ensure_seed_data(request=None):
             months=MONTHS_AUG_2026,
             departments=DEFAULT_DEPARTMENTS,
             chart_urls=chart_urls,
-            validation_warnings=[
-                "Capacity utilization in Nov 2026 reaches 96.4% in Machining Dept.",
-                "Service Machining contract hours slightly above historical baseline."
-            ]
+            validation_warnings=[]
         )
     else:
         # Force update chart_urls on existing records
         ver = PlanningVersion.objects.first()
         ver.chart_urls = chart_urls
+        ver.validation_warnings = []
         ver.save()
 
     if not Benchmark.objects.exists():
@@ -248,8 +343,64 @@ class PlanningVersionViewSet(viewsets.ModelViewSet):
     def latest(self, request):
         ensure_seed_data(request=request)
         latest_ver = PlanningVersion.objects.first()
+        live_data = build_live_graph_data()
+
+        months = live_data["Month"]
+        total_cap_monthly = live_data["Capacity"]
+
+        # Department capacity shares matching ManualInputConfig
+        config = ManualInputConfig.objects.first()
+        tasks = config.tasks if config and config.tasks else []
+        annual_cap = sum(float(t.get('hours', 0)) for t in tasks) if tasks else 140000.0
+
+        dept_hours_map = {
+            "welding": 50000.0,
+            "machining": 30000.0,
+            "assembly": 20000.0,
+            "rr": 25000.0,
+            "plating": 15000.0,
+        }
+        for t in tasks:
+            tid = (t.get('id') or '').lower()
+            h = float(t.get('hours', 0))
+            if tid in dept_hours_map and h > 0:
+                dept_hours_map[tid] = h
+
+        total_planned = [
+            sum(live_data[dept][i] for dept in ["Welding", "Machining", "Assembly", "Roll Refurbishment", "Plating"])
+            for i in range(len(months))
+        ]
+
+        live_depts = {
+            "production": {
+                "capacityHours": total_cap_monthly,
+                "loadHours": total_planned
+            }
+        }
+
+        dept_col_map = {
+            "welding": "Welding",
+            "machining": "Machining",
+            "assembly": "Assembly",
+            "rr": "Roll Refurbishment",
+            "plating": "Plating"
+        }
+
+        for k, col in dept_col_map.items():
+            cap_share = dept_hours_map.get(k, 20000.0) / (annual_cap if annual_cap > 0 else 140000.0)
+            live_depts[k] = {
+                "capacityHours": [round(c * cap_share, 2) for c in total_cap_monthly],
+                "loadHours": live_data.get(col, [0.0] * 12)
+            }
+
+        chart_urls = sync_graph_automation_charts(request=request)
+
         serializer = self.get_serializer(latest_ver)
-        return Response(serializer.data)
+        data = serializer.data
+        data["departments"] = live_depts
+        data["chart_urls"] = chart_urls
+        data["file_name"] = "Live System Inputs & Project DB"
+        return Response(data)
 
     @action(detail=False, methods=['post'])
     def calculate_manual_planning(self, request):
@@ -349,20 +500,154 @@ class PlanningVersionViewSet(viewsets.ModelViewSet):
             "tasks": config.tasks
         }, status=status.HTTP_200_OK)
 
+    @action(detail=False, methods=['get'])
+    def list_capacity_plans(self, request):
+        plans = CapacityPlan.objects.all()
+        if not plans.exists():
+            default_tasks = [
+                { "id": "welding", "name": "Welding", "category": "Heavy Fabrication", "hours": 50000 },
+                { "id": "machining", "name": "Machining", "category": "Precision Turning & Milling", "hours": 30000 },
+                { "id": "assembly", "name": "Assembly", "category": "Plant Equipment Assembly", "hours": 20000 },
+                { "id": "rr", "name": "Roll Repair (R&R)", "category": "Refurbishment & Reconditioning", "hours": 25000 },
+                { "id": "plating", "name": "Plating", "category": "Surface Treatment & Chrome", "hours": 15000 }
+            ]
+            total_h = sum(float(t.get("hours", 0)) for t in default_tasks)
+            CapacityPlan.objects.create(
+                plan_id="plan_2026_baseline",
+                name="2026 Baseline Plan (140,000 hrs)",
+                year=2026,
+                horizon="Aug 2026 - Jul 2027",
+                tasks=default_tasks,
+                total_hours=total_h,
+                is_active=True
+            )
+            plans = CapacityPlan.objects.all()
+
+        active_plan = plans.filter(is_active=True).first() or plans.first()
+        serializer = CapacityPlanSerializer(plans, many=True)
+        return Response({
+            "status": "success",
+            "active_plan_id": active_plan.plan_id if active_plan else None,
+            "plans": serializer.data
+        }, status=status.HTTP_200_OK)
+
     @action(detail=False, methods=['post'])
-    def save_manual_config(self, request):
+    def save_capacity_plan(self, request):
+        plan_id = request.data.get('plan_id')
+        name = request.data.get('name', '').strip()
         year = int(request.data.get('year', 2026))
         tasks = request.data.get('tasks', [])
+        is_new = request.data.get('is_new', False)
+
+        total_hours = sum(float(t.get("hours", 0)) for t in tasks)
+
+        if is_new or not plan_id:
+            import uuid
+            new_id = f"plan_{year}_{uuid.uuid4().hex[:6]}"
+            CapacityPlan.objects.update(is_active=False)
+            plan = CapacityPlan.objects.create(
+                plan_id=new_id,
+                name=name or f"Capacity Plan {year} ({int(total_hours):,} hrs)",
+                year=year,
+                horizon=f"Aug {year} - Jul {year+1}",
+                tasks=tasks,
+                total_hours=total_hours,
+                is_active=True
+            )
+        else:
+            try:
+                plan = CapacityPlan.objects.get(plan_id=plan_id)
+                if name:
+                    plan.name = name
+                plan.year = year
+                plan.horizon = f"Aug {year} - Jul {year+1}"
+                plan.tasks = tasks
+                plan.total_hours = total_hours
+                plan.is_active = True
+                CapacityPlan.objects.exclude(plan_id=plan.plan_id).update(is_active=False)
+                plan.save()
+            except CapacityPlan.DoesNotExist:
+                import uuid
+                new_id = f"plan_{year}_{uuid.uuid4().hex[:6]}"
+                CapacityPlan.objects.update(is_active=False)
+                plan = CapacityPlan.objects.create(
+                    plan_id=new_id,
+                    name=name or f"Capacity Plan {year} ({int(total_hours):,} hrs)",
+                    year=year,
+                    horizon=f"Aug {year} - Jul {year+1}",
+                    tasks=tasks,
+                    total_hours=total_hours,
+                    is_active=True
+                )
+
         config, _ = ManualInputConfig.objects.get_or_create(user_key="default_user")
         config.year = year
         config.tasks = tasks
         config.save()
+
+        sync_graph_automation_charts(force=True)
+
         return Response({
             "status": "success",
-            "message": "Manual capacity configuration saved successfully.",
-            "year": config.year,
-            "tasks": config.tasks
+            "message": f"Capacity plan '{plan.name}' saved and activated successfully.",
+            "plan": CapacityPlanSerializer(plan).data
         }, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['post'])
+    def activate_capacity_plan(self, request):
+        plan_id = request.data.get('plan_id')
+        if not plan_id:
+            return Response({"error": "plan_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            plan = CapacityPlan.objects.get(plan_id=plan_id)
+            CapacityPlan.objects.update(is_active=False)
+            plan.is_active = True
+            plan.save()
+
+            config, _ = ManualInputConfig.objects.get_or_create(user_key="default_user")
+            config.year = plan.year
+            config.tasks = plan.tasks
+            config.save()
+
+            sync_graph_automation_charts(force=True)
+
+            return Response({
+                "status": "success",
+                "message": f"Capacity plan '{plan.name}' activated.",
+                "plan": CapacityPlanSerializer(plan).data
+            }, status=status.HTTP_200_OK)
+        except CapacityPlan.DoesNotExist:
+            return Response({"error": "Plan not found"}, status=status.HTTP_404_NOT_FOUND)
+
+    @action(detail=False, methods=['post'])
+    def delete_capacity_plan(self, request):
+        plan_id = request.data.get('plan_id')
+        if not plan_id:
+            return Response({"error": "plan_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            plan = CapacityPlan.objects.get(plan_id=plan_id)
+            was_active = plan.is_active
+            plan.delete()
+
+            if was_active:
+                remaining = CapacityPlan.objects.first()
+                if remaining:
+                    remaining.is_active = True
+                    remaining.save()
+                    config, _ = ManualInputConfig.objects.get_or_create(user_key="default_user")
+                    config.year = remaining.year
+                    config.tasks = remaining.tasks
+                    config.save()
+                    sync_graph_automation_charts(force=True)
+
+            return Response({
+                "status": "success",
+                "message": "Capacity plan deleted successfully."
+            }, status=status.HTTP_200_OK)
+        except CapacityPlan.DoesNotExist:
+            return Response({"error": "Plan not found"}, status=status.HTTP_404_NOT_FOUND)
 
 
 class BenchmarkViewSet(viewsets.ReadOnlyModelViewSet):
@@ -533,6 +818,9 @@ class ProjectViewSet(viewsets.ModelViewSet):
             project.total_planned_hours = all_task_hours
             project.save()
 
+        # Regenerate live graph automation charts with updated project task distributions
+        sync_graph_automation_charts(force=True)
+
         serializer = self.get_serializer(project)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
@@ -656,8 +944,16 @@ class ProjectViewSet(viewsets.ModelViewSet):
                 instance.total_planned_hours = all_task_hours
                 instance.save()
 
+        # Regenerate live graph automation charts with updated project task distributions
+        sync_graph_automation_charts(force=True)
+
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
+
+    def destroy(self, request, *args, **kwargs):
+        res = super().destroy(request, *args, **kwargs)
+        sync_graph_automation_charts(force=True)
+        return res
 
 
 

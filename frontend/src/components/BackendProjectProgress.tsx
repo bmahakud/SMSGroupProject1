@@ -436,11 +436,11 @@ export const BackendProjectProgress: React.FC = () => {
                                   style={{
                                     fontSize: '0.7rem',
                                     fontWeight: 700,
-                                    color: m.month_index === 1 ? '#00d2ff' : '#10b981',
+                                    color: Math.abs(m.percentage - 15.0) < 0.1 ? '#00d2ff' : '#10b981',
                                     marginTop: '0.15rem',
                                   }}
                                 >
-                                  {m.percentage}% {m.month_index === 1 ? '(15% Ramp-up)' : '(Equal Split)'}
+                                  {m.percentage}% {Math.abs(m.percentage - 15.0) < 0.1 ? '(15% Ramp-up)' : '(Equal Split)'}
                                 </div>
                               </div>
                             ))}

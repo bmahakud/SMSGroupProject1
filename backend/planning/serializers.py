@@ -3,6 +3,7 @@ from .models import (
     CapacityAdjustment,
     PlanningVersion,
     Benchmark,
+    CapacityPlan,
     Project,
     ProjectTask,
     ProjectTaskMonthlyDistribution,
@@ -12,6 +13,11 @@ from .services import ProjectPlanningEngine
 class PlanningVersionSerializer(serializers.ModelSerializer):
     class Meta:
         model = PlanningVersion
+        fields = '__all__'
+
+class CapacityPlanSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CapacityPlan
         fields = '__all__'
 
 class CapacityAdjustmentSerializer(serializers.ModelSerializer):

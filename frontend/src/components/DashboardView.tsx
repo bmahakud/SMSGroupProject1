@@ -33,39 +33,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ version }) => {
   const capacityHours = deptData.capacityHours || [];
   const loadHours = deptData.loadHours || deptData.laborSupply || deptData.millingLoad || deptData.refurbLoad || deptData.platingLoad || deptData.serviceLoad || [];
   
-  const totalCap = capacityHours.reduce((a, b) => a + b, 0);
-  const totalLoad = loadHours.reduce((a, b) => a + b, 0);
-  const avgUtilization = totalCap > 0 ? ((totalLoad / totalCap) * 100).toFixed(1) : '87.5';
+  const totalCap = Math.round(capacityHours.reduce((a, b) => a + b, 0));
+  const totalLoad = Math.round(loadHours.reduce((a, b) => a + b, 0));
+  const avgUtilization = totalCap > 0 ? ((totalLoad / totalCap) * 100).toFixed(1) : '0.0';
 
   const maxVal = Math.max(...capacityHours, ...loadHours, 1);
 
   return (
     <div>
-      {/* Warnings Banner if any */}
-      {version.validation_warnings && version.validation_warnings.length > 0 && (
-        <div 
-          className="glass-panel" 
-          style={{ 
-            padding: '1rem 1.25rem', 
-            marginBottom: '1.5rem', 
-            borderColor: 'rgba(255, 171, 0, 0.4)',
-            background: 'rgba(255, 171, 0, 0.05)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '1rem'
-          }}
-        >
-          <AlertTriangle color="var(--accent-amber)" size={24} />
-          <div>
-            <div style={{ fontWeight: 700, color: 'var(--accent-amber)', fontSize: '0.9rem' }}>
-              Capacity Warning Identified ({version.validation_warnings.length})
-            </div>
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              {version.validation_warnings[0]}
-            </div>
-          </div>
-        </div>
-      )}
 
 
       {/* Metrics Row */}
@@ -134,12 +109,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ version }) => {
           <div className="department-tabs">
             {[
               { id: 'production', label: 'Capacity Utilization' },
-              { id: 'welding', label: 'Heavy Welding' },
+              { id: 'welding', label: 'Welding' },
               { id: 'machining', label: 'Machining' },
+              { id: 'assembly', label: 'Assembly' },
               { id: 'rr', label: 'Roll Repair' },
               { id: 'plating', label: 'Plating' },
-              { id: 'service_machining', label: 'Service Machining' },
-              { id: 'scb', label: 'SCB Summary' }
             ].map(dept => (
               <button
                 key={dept.id}
@@ -152,72 +126,88 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ version }) => {
           </div>
         </div>
 
-        {/* Static Plot View with Image Fallback */}
-        {!imageErrors[selectedDept] ? (
-          <div style={{ marginTop: '1.5rem', textAlign: 'center', background: 'rgba(0, 0, 0, 0.2)', padding: '1rem', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
-            <img 
-              src={`/static_plots/${selectedDept}_dashboard.png`} 
-              alt={`${selectedDept} Generated Dashboard Chart`} 
-              onError={() => setImageErrors(prev => ({ ...prev, [selectedDept]: true }))}
-              style={{ width: '100%', maxHeight: '520px', objectFit: 'contain', borderRadius: '8px' }} 
-            />
-          </div>
-        ) : (
-          <div style={{ marginTop: '2rem' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '0.75rem', height: '240px', alignItems: 'flex-end', paddingBottom: '1rem', borderBottom: '1px solid var(--border-color)' }}>
-              {months.map((m, idx) => {
-                const cap = capacityHours[idx] || 10000;
-                const load = loadHours[idx] || 8500;
-                const utilPct = Math.round((load / cap) * 100);
-                const heightPct = Math.min(100, Math.round((load / maxVal) * 200));
+        {/* Generated Live Plot View with Fallback */}
+        {(() => {
+          let chartUrl = version?.chart_urls?.[selectedDept];
+          if (!chartUrl) {
+            const filename = (selectedDept === 'production' || selectedDept === 'scb') ? 'scb_dashboard.png' : `${selectedDept}_dashboard.png`;
+            chartUrl = `/media/charts/${filename}`;
+          }
+          const cleanUrl = getChartUrl(chartUrl);
+          const cacheBust = version?.upload_date ? encodeURIComponent(version.upload_date) : Date.now();
+          const fullImgSrc = `${cleanUrl}?v=${cacheBust}`;
 
-                const isHigh = utilPct > 90;
+          if (!imageErrors[selectedDept]) {
+            return (
+              <div style={{ marginTop: '1rem', width: '100%', overflow: 'hidden', background: '#ffffff', borderRadius: '10px', border: '1px solid var(--border-color)', boxShadow: '0 4px 20px rgba(0, 0, 0, 0.25)' }}>
+                <img 
+                  key={`${selectedDept}-${version?.upload_date || ''}`}
+                  src={fullImgSrc} 
+                  alt={`${selectedDept} Generated Dashboard Chart`} 
+                  onError={() => setImageErrors(prev => ({ ...prev, [selectedDept]: true }))}
+                  style={{ width: '100%', height: 'auto', display: 'block', maxHeight: '780px', objectFit: 'contain' }} 
+                />
+              </div>
+            );
+          }
 
-                return (
-                  <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }}>
-                    <span style={{ fontSize: '0.7rem', color: isHigh ? 'var(--accent-amber)' : 'var(--accent-cyan)', fontWeight: 700, marginBottom: '0.35rem' }}>
-                      {utilPct}%
-                    </span>
-                    
-                    <div style={{ width: '100%', display: 'flex', gap: '3px', alignItems: 'flex-end', height: '180px' }}>
-                      <div style={{ flex: 1, height: '100%', background: 'rgba(255, 255, 255, 0.04)', borderRadius: '4px 4px 0 0', position: 'relative', overflow: 'hidden' }}>
-                        <div 
-                          style={{ 
-                            position: 'absolute', 
-                            bottom: 0, 
-                            left: 0, 
-                            right: 0, 
-                            height: `${heightPct}%`, 
-                            background: isHigh 
-                              ? 'linear-gradient(0deg, rgba(255, 171, 0, 0.8), rgba(255, 82, 82, 0.9))' 
-                              : 'linear-gradient(0deg, var(--accent-blue), var(--accent-cyan))',
-                            borderRadius: '4px 4px 0 0',
-                            transition: 'height 0.5s ease'
-                          }} 
-                        />
+          return (
+            <div style={{ marginTop: '2rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '0.75rem', height: '240px', alignItems: 'flex-end', paddingBottom: '1rem', borderBottom: '1px solid var(--border-color)' }}>
+                {months.map((m, idx) => {
+                  const cap = capacityHours[idx] || 10000;
+                  const load = loadHours[idx] || 8500;
+                  const utilPct = Math.round((load / cap) * 100);
+                  const heightPct = Math.min(100, Math.round((load / maxVal) * 200));
+
+                  const isHigh = utilPct > 90;
+
+                  return (
+                    <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }}>
+                      <span style={{ fontSize: '0.7rem', color: isHigh ? 'var(--accent-amber)' : 'var(--accent-cyan)', fontWeight: 700, marginBottom: '0.35rem' }}>
+                        {utilPct}%
+                      </span>
+                      
+                      <div style={{ width: '100%', display: 'flex', gap: '3px', alignItems: 'flex-end', height: '180px' }}>
+                        <div style={{ flex: 1, height: '100%', background: 'rgba(255, 255, 255, 0.04)', borderRadius: '4px 4px 0 0', position: 'relative', overflow: 'hidden' }}>
+                          <div 
+                            style={{ 
+                              position: 'absolute', 
+                              bottom: 0, 
+                              left: 0, 
+                              right: 0, 
+                              height: `${heightPct}%`, 
+                              background: isHigh 
+                                ? 'linear-gradient(0deg, rgba(255, 171, 0, 0.8), rgba(255, 82, 82, 0.9))' 
+                                : 'linear-gradient(0deg, var(--accent-blue), var(--accent-cyan))',
+                              borderRadius: '4px 4px 0 0',
+                              transition: 'height 0.5s ease'
+                            }} 
+                          />
+                        </div>
                       </div>
+
+                      <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '0.5rem', textAlign: 'center', fontWeight: 600 }}>
+                        {m.split(' ')[0]}
+                      </span>
                     </div>
-
-                    <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '0.5rem', textAlign: 'center', fontWeight: 600 }}>
-                      {m.split(' ')[0]}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'center', gap: '2rem', marginTop: '1.25rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <div style={{ width: '12px', height: '12px', background: 'var(--accent-cyan)', borderRadius: '2px' }} />
-                <span>Optimal Capacity (70% - 89%)</span>
+                  );
+                })}
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <div style={{ width: '12px', height: '12px', background: 'var(--accent-amber)', borderRadius: '2px' }} />
-                <span>High Load Bottleneck Risk (&gt;90%)</span>
+
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '2rem', marginTop: '1.25rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <div style={{ width: '12px', height: '12px', background: 'var(--accent-cyan)', borderRadius: '2px' }} />
+                  <span>Optimal Capacity (70% - 89%)</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <div style={{ width: '12px', height: '12px', background: 'var(--accent-amber)', borderRadius: '2px' }} />
+                  <span>High Load Bottleneck Risk (&gt;90%)</span>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
       </div>
     </div>
   );

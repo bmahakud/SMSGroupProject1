@@ -46,6 +46,24 @@ class ManualInputConfig(models.Model):
         return f"ManualInputConfig ({self.year})"
 
 
+class CapacityPlan(models.Model):
+    plan_id = models.CharField(max_length=64, unique=True)
+    name = models.CharField(max_length=256, default="Default Plan")
+    year = models.IntegerField(default=2026)
+    horizon = models.CharField(max_length=128, default="Aug 2026 - Jul 2027")
+    tasks = models.JSONField(default=list)
+    total_hours = models.FloatField(default=140000.0)
+    is_active = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-updated_at']
+
+    def __str__(self):
+        return f"{self.name} ({self.year} - {self.total_hours} hrs)"
+
+
 class Project(models.Model):
     customer_name = models.CharField(max_length=256, blank=True, default="")
     wbs_no = models.CharField(max_length=128, blank=True, default="")

@@ -21,6 +21,8 @@ import {
   Trash2,
 } from 'lucide-react';
 import { ProjectDetailsModal } from './ProjectDetailsModal';
+import TaskScheduleSlider from './TaskScheduleSlider';
+import { fetchBackendProjects, authenticatedFetch, getApiBaseUrl } from '../lib/api';
 
 interface Project {
   id: string;
@@ -62,41 +64,6 @@ interface ValidationErrors {
   projectManager?: string;
   tasks?: string;
   taskAllocatedHours: Record<number, string>;
-}
-
-// Display dates in DD-MM-YYYY format while keeping the stored/API value as YYYY-MM-DD.
-function formatDisplayDate(dateValue?: string): string {
-  if (!dateValue) return '—';
-
-  const match = String(dateValue).match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (match) {
-    const [, year, month, day] = match;
-    return `${day}-${month}-${year}`;
-  }
-
-  const date = new Date(dateValue);
-  if (Number.isNaN(date.getTime())) return dateValue;
-
-  const day = String(date.getDate()).padStart(2, '0');
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const year = date.getFullYear();
-  return `${day}-${month}-${year}`;
-}
-
-// Open the native calendar when the user clicks anywhere inside a date input.
-// The browser keeps the actual value in YYYY-MM-DD; this only controls the picker UI.
-function openDatePicker(event: React.MouseEvent<HTMLInputElement>) {
-  const input = event.currentTarget as HTMLInputElement & {
-    showPicker?: () => void;
-  };
-
-  if (typeof input.showPicker === 'function') {
-    try {
-      input.showPicker();
-    } catch {
-      // Let the browser's normal date-input behavior handle unsupported cases.
-    }
-  }
 }
 
 function getProjectMonthSteps(startDateStr: string, endDateStr: string) {
@@ -241,33 +208,6 @@ export const ProjectPlanningView: React.FC<
 
   /*
    * ============================================================
-   * PAGINATION
-   * Show 10 projects per page.
-   * ============================================================
-   */
-
-  const PROJECTS_PER_PAGE = 10;
-
-  const [currentPage, setCurrentPage] = useState<number>(1);
-
-  const totalPages = Math.max(
-    1,
-    Math.ceil(projects.length / PROJECTS_PER_PAGE)
-  );
-
-  const paginatedProjects = projects.slice(
-    (currentPage - 1) * PROJECTS_PER_PAGE,
-    currentPage * PROJECTS_PER_PAGE
-  );
-
-  useEffect(() => {
-    if (currentPage > totalPages) {
-      setCurrentPage(totalPages);
-    }
-  }, [currentPage, totalPages]);
-
-  /*
-   * ============================================================
    * FIELD REFS
    * These are used to automatically move the user to the first
    * missing required field.
@@ -292,53 +232,31 @@ export const ProjectPlanningView: React.FC<
   const taskAllocatedHoursRefs =
     useRef<Record<number, HTMLInputElement | null>>({});
 
-  /*
-   * ============================================================
-   * LOAD PROJECTS
-   * ============================================================
-   */
-
-  const loadProjects = () => {
-  try {
-    const saved = localStorage.getItem('sms_project_planning');
-
-    if (saved) {
-      const parsedProjects = JSON.parse(saved);
-
-      // Add serial numbers to old projects that don't have one
-      // Normalize serial numbers so saved projects always start at 1
-      // and remain continuous, even if older data contains gaps.
-      const projectsWithSerialNo = parsedProjects.map(
-        (project: any, index: number) => ({
-          ...project,
-          serialNo: index + 1,
-        })
-      );
-
-      setProjects(projectsWithSerialNo);
-
-      // Save migrated projects back to localStorage
-      localStorage.setItem(
-        'sms_project_planning',
-        JSON.stringify(projectsWithSerialNo)
-      );
+  const openDatePicker = (e: React.MouseEvent<HTMLInputElement>) => {
+    try {
+      if ('showPicker' in HTMLInputElement.prototype) {
+        (e.currentTarget as any).showPicker();
+      }
+    } catch (err) {
+      // Fallback for browsers that don't support showPicker()
     }
-  } catch (e) {
-    console.error('Failed to load saved projects', e);
-  }
-};
+  };
 
-  useEffect(() => {
-    loadProjects();
-  }, []);
+  const formatDisplayDate = (dateStr?: string) => {
+    if (!dateStr) return '—';
+    try {
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return dateStr;
+      return date.toLocaleDateString('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      });
+    } catch {
+      return dateStr;
+    }
+  };
 
-  /*
-   * ============================================================
-   * DELETE PROJECT
-   * ============================================================
-   * Removes the project from the local project list immediately
-   * and also attempts to remove it from the Django backend.
-   */
   const handleDeleteProject = async (project: any) => {
     const projectName =
       project.customer_name ||
@@ -353,13 +271,10 @@ export const ProjectPlanningView: React.FC<
 
     if (!confirmed) return;
 
-    // Remove the selected project first.
     const remainingProjects = projects.filter(
       (item: any) => String(item.id) !== String(project.id)
     );
 
-    // Re-number the remaining projects so the serial numbers are always
-    // continuous: 1, 2, 3, 4, ... with no gaps after a deletion.
     const updatedProjects = remainingProjects.map(
       (item: any, index: number) => ({
         ...item,
@@ -374,11 +289,9 @@ export const ProjectPlanningView: React.FC<
       JSON.stringify(updatedProjects)
     );
 
-    // Best-effort backend deletion. The local project list is
-    // updated even if the backend is unavailable.
     try {
       const response = await fetch(
-        `/api/v1/projects/${encodeURIComponent(String(project.id))}/`,
+        `${getApiBaseUrl()}/projects/${encodeURIComponent(String(project.id))}/`,
         {
           method: 'DELETE',
         }
@@ -397,6 +310,92 @@ export const ProjectPlanningView: React.FC<
       );
     }
   };
+
+  /*
+   * ============================================================
+   * LOAD PROJECTS
+   * ============================================================
+   */
+
+  const loadProjects = async () => {
+    try {
+      const backendProjects = await fetchBackendProjects();
+      if (backendProjects && Array.isArray(backendProjects) && backendProjects.length > 0) {
+        const formattedProjects = backendProjects.map((bp: any, index: number) => {
+          const mainTask = bp.tasks?.[0] || {};
+          const cName = bp.customer_name || bp.project_name || 'Project';
+          const wbs = bp.wbs_no || bp.project_number || '';
+          return {
+            id: String(bp.id),
+            serialNo: index + 1,
+            customerName: cName,
+            customer_name: cName,
+            wbsNo: wbs,
+            wbs_no: wbs,
+            projectCode: bp.project_code || wbs,
+            project_code: bp.project_code || wbs,
+            location: bp.location || mainTask.location || '',
+            projectName: bp.project_name || cName,
+            project_name: bp.project_name || cName,
+            projectNumber: bp.project_number || wbs,
+            project_number: bp.project_number || wbs,
+            equipmentName: bp.equipment_name || '',
+            equipmentWeight: bp.equipment_weight || '',
+            description: bp.description || '',
+            startDate: bp.zero_date || bp.startDate || '',
+            endDate: bp.cdd || bp.endDate || '',
+            projectManager: bp.project_manager || '',
+            task: mainTask.task_name || 'Welding',
+            plannedHours: Number(bp.total_planned_hours) || 0,
+            total_planned_hours: Number(bp.total_planned_hours) || 0,
+            priority: bp.priority || 'Medium',
+            status: bp.status || 'Planned',
+            tasks: bp.tasks || [],
+          };
+        });
+
+        setProjects(formattedProjects);
+        localStorage.setItem(
+          'sms_project_planning',
+          JSON.stringify(formattedProjects)
+        );
+        return;
+      }
+    } catch (err) {
+      console.warn('Backend API fetch projects warning:', err);
+    }
+
+    try {
+      const saved = localStorage.getItem('sms_project_planning');
+
+      if (saved) {
+        const parsedProjects = JSON.parse(saved);
+
+        const projectsWithSerialNo = parsedProjects.map(
+          (project: any, index: number) => ({
+            ...project,
+            serialNo:
+              typeof project.serialNo === 'number'
+                ? project.serialNo
+                : index + 1,
+          })
+        );
+
+        setProjects(projectsWithSerialNo);
+
+        localStorage.setItem(
+          'sms_project_planning',
+          JSON.stringify(projectsWithSerialNo)
+        );
+      }
+    } catch (e) {
+      console.error('Failed to load saved projects', e);
+    }
+  };
+
+  useEffect(() => {
+    loadProjects();
+  }, []);
 
   /*
    * ============================================================
@@ -995,26 +994,22 @@ export const ProjectPlanningView: React.FC<
      * Persist to Django REST API backend
      */
     try {
-      fetch('/api/v1/projects/', {
+      const apiBase = getApiBaseUrl();
+      authenticatedFetch(`${apiBase}/projects/`, {
         method: 'POST',
         headers: {
-          'Content-Type':
-            'application/json',
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify(
-          newProject
-        ),
-      }).catch((e) =>
-        console.warn(
-          'Django API sync note:',
-          e
-        )
-      );
+        body: JSON.stringify(newProject),
+      })
+        .then(() => {
+          loadProjects();
+        })
+        .catch((e) =>
+          console.warn('Django API sync note:', e)
+        );
     } catch (err) {
-      console.warn(
-        'API sync warning:',
-        err
-      );
+      console.warn('API sync warning:', err);
     }
 
     if (onProjectCreated) {
@@ -1058,6 +1053,7 @@ export const ProjectPlanningView: React.FC<
     message?: string;
   }) => {
     if (!message) return null;
+
     return (
       <div
         style={{
@@ -2179,501 +2175,20 @@ export const ProjectPlanningView: React.FC<
                         ];
 
                       return (
-                        <div
-                          style={{
-                            background:
-                              'rgba(10, 16, 30, 0.85)',
-                            padding:
-                              '0.9rem 1rem',
-                            borderRadius:
-                              '10px',
-                            border:
-                              '1px solid rgba(255, 255, 255, 0.12)',
+                        <TaskScheduleSlider
+                          taskTitle={`Task #${activeTaskIdx + 1} (${currentTask?.task_name || 'Task'})`}
+                          taskColor={tColor}
+                          projectMonthSteps={projectMonthSteps}
+                          startIdx={startIdx}
+                          endIdx={endIdx}
+                          durationMonths={dur}
+                          onChange={(newStartIdx, newEndIdx) => {
+                            const newStartDate = projectMonthSteps[newStartIdx]?.dateStr || formData.startDate;
+                            const newDur = Math.max(1, newEndIdx - newStartIdx + 1);
+                            handleTaskFieldChange(activeTaskIdx, 'start_date', newStartDate);
+                            handleTaskFieldChange(activeTaskIdx, 'duration_months', newDur);
                           }}
-                        >
-                          <div
-                            style={{
-                              display:
-                                'flex',
-                              justifyContent:
-                                'space-between',
-                              alignItems:
-                                'center',
-                              marginBottom:
-                                '0.65rem',
-                              flexWrap:
-                                'wrap',
-                              gap: '0.5rem',
-                            }}
-                          >
-                            <div
-                              style={{
-                                fontSize:
-                                  '0.82rem',
-                                fontWeight:
-                                  800,
-                                color:
-                                  tColor,
-                              }}
-                            >
-                              Task #
-                              {activeTaskIdx +
-                                1}{' '}
-                              (
-                              {
-                                currentTask?.task_name
-                              }
-                              ): Start &
-                              End
-                              Schedule
-                              Controller
-                            </div>
-
-                            <div
-                              style={{
-                                fontSize:
-                                  '0.75rem',
-                                fontWeight:
-                                  800,
-                                color:
-                                  '#10b981',
-                                background:
-                                  'rgba(16, 185, 129, 0.12)',
-                                padding:
-                                  '0.2rem 0.65rem',
-                                borderRadius:
-                                  '12px',
-                                border:
-                                  '1px solid rgba(16, 185, 129, 0.3)',
-                              }}
-                            >
-                              {
-                                projectMonthSteps[
-                                  startIdx
-                                ]?.label
-                              }{' '}
-                              ➔{' '}
-                              {
-                                projectMonthSteps[
-                                  endIdx
-                                ]?.label
-                              }{' '}
-                              (
-                              {dur}{' '}
-                              {dur ===
-                              1
-                                ? 'Month'
-                                : 'Months'}
-                              )
-                            </div>
-                          </div>
-
-                          <div
-                            style={{
-                              display:
-                                'grid',
-                              gridTemplateColumns:
-                                '1fr 1fr',
-                              gap: '1.25rem',
-                            }}
-                          >
-                            {/* START MONTH */}
-
-                            <div>
-                              <div
-                                style={{
-                                  display:
-                                    'flex',
-                                  justifyContent:
-                                    'space-between',
-                                  alignItems:
-                                    'center',
-                                  marginBottom:
-                                    '0.35rem',
-                                }}
-                              >
-                                <span
-                                  style={{
-                                    fontSize:
-                                      '0.72rem',
-                                    fontWeight:
-                                      700,
-                                    color:
-                                      'var(--accent-cyan)',
-                                  }}
-                                >
-                                  Start /
-                                  Kickoff
-                                  Month
-                                </span>
-
-                                <span
-                                  style={{
-                                    fontSize:
-                                      '0.7rem',
-                                    fontWeight:
-                                      700,
-                                    color:
-                                      '#fff',
-                                  }}
-                                >
-                                  {
-                                    projectMonthSteps[
-                                      startIdx
-                                    ]?.label
-                                  }
-                                </span>
-                              </div>
-
-                              <input
-                                type="range"
-                                min={0}
-                                max={Math.max(
-                                  0,
-                                  projectMonthSteps.length -
-                                    1
-                                )}
-                                value={
-                                  startIdx
-                                }
-                                onChange={(
-                                  e
-                                ) => {
-                                  const newStartIdx =
-                                    Number(
-                                      e.target
-                                        .value
-                                    );
-
-                                  const newStartDate =
-                                    projectMonthSteps[
-                                      newStartIdx
-                                    ]?.dateStr ||
-                                    formData.startDate;
-
-                                  let newDur =
-                                    endIdx -
-                                    newStartIdx +
-                                    1;
-
-                                  if (
-                                    newDur <
-                                    1
-                                  ) {
-                                    newDur =
-                                      1;
-                                  }
-
-                                  handleTaskFieldChange(
-                                    activeTaskIdx,
-                                    'start_date',
-                                    newStartDate
-                                  );
-
-                                  handleTaskFieldChange(
-                                    activeTaskIdx,
-                                    'duration_months',
-                                    newDur
-                                  );
-                                }}
-                                style={{
-                                  width:
-                                    '100%',
-                                  accentColor:
-                                    tColor,
-                                  cursor:
-                                    'pointer',
-                                  marginBottom:
-                                    '0.35rem',
-                                }}
-                              />
-
-                              <div
-                                style={{
-                                  display:
-                                    'flex',
-                                  gap: '0.25rem',
-                                  overflowX:
-                                    'auto',
-                                  paddingBottom:
-                                    '0.1rem',
-                                }}
-                              >
-                                {projectMonthSteps.map(
-                                  (
-                                    step,
-                                    sIdx
-                                  ) => {
-                                    const isSelected =
-                                      startIdx ===
-                                      sIdx;
-
-                                    return (
-                                      <button
-                                        key={`start_${step.dateStr}_${sIdx}`}
-                                        type="button"
-                                        onClick={() => {
-                                          const newStartDate =
-                                            step.dateStr;
-
-                                          let newDur =
-                                            endIdx -
-                                            sIdx +
-                                            1;
-
-                                          if (
-                                            newDur <
-                                            1
-                                          ) {
-                                            newDur =
-                                              1;
-                                          }
-
-                                          handleTaskFieldChange(
-                                            activeTaskIdx,
-                                            'start_date',
-                                            newStartDate
-                                          );
-
-                                          handleTaskFieldChange(
-                                            activeTaskIdx,
-                                            'duration_months',
-                                            newDur
-                                          );
-                                        }}
-                                        style={{
-                                          padding:
-                                            '0.18rem 0.4rem',
-                                          borderRadius:
-                                            '4px',
-                                          fontSize:
-                                            '0.64rem',
-                                          fontWeight:
-                                            isSelected
-                                              ? 800
-                                              : 600,
-                                          background:
-                                            isSelected
-                                              ? `${tColor}33`
-                                              : 'rgba(255, 255, 255, 0.04)',
-                                          border:
-                                            isSelected
-                                              ? `1px solid ${tColor}`
-                                              : '1px solid rgba(255, 255, 255, 0.08)',
-                                          color:
-                                            isSelected
-                                              ? tColor
-                                              : 'var(--text-muted)',
-                                          cursor:
-                                            'pointer',
-                                          whiteSpace:
-                                            'nowrap',
-                                        }}
-                                      >
-                                        {
-                                          step.label
-                                        }
-                                      </button>
-                                    );
-                                  }
-                                )}
-                              </div>
-                            </div>
-
-                            {/* END MONTH */}
-
-                            <div>
-                              <div
-                                style={{
-                                  display:
-                                    'flex',
-                                  justifyContent:
-                                    'space-between',
-                                  alignItems:
-                                    'center',
-                                  marginBottom:
-                                    '0.35rem',
-                                }}
-                              >
-                                <span
-                                  style={{
-                                    fontSize:
-                                      '0.72rem',
-                                    fontWeight:
-                                      700,
-                                    color:
-                                      'var(--accent-cyan)',
-                                  }}
-                                >
-                                  Completion /
-                                  End Month
-                                </span>
-
-                                <span
-                                  style={{
-                                    fontSize:
-                                      '0.7rem',
-                                    fontWeight:
-                                      700,
-                                    color:
-                                      '#fff',
-                                  }}
-                                >
-                                  {
-                                    projectMonthSteps[
-                                      endIdx
-                                    ]?.label
-                                  }
-                                </span>
-                              </div>
-
-                              <input
-                                type="range"
-                                min={
-                                  startIdx
-                                }
-                                max={Math.max(
-                                  startIdx,
-                                  projectMonthSteps.length -
-                                    1
-                                )}
-                                value={
-                                  endIdx
-                                }
-                                onChange={(
-                                  e
-                                ) => {
-                                  const newEndIdx =
-                                    Number(
-                                      e.target
-                                        .value
-                                    );
-
-                                  const newDur =
-                                    Math.max(
-                                      1,
-                                      newEndIdx -
-                                        startIdx +
-                                        1
-                                    );
-
-                                  handleTaskFieldChange(
-                                    activeTaskIdx,
-                                    'duration_months',
-                                    newDur
-                                  );
-                                }}
-                                style={{
-                                  width:
-                                    '100%',
-                                  accentColor:
-                                    tColor,
-                                  cursor:
-                                    'pointer',
-                                  marginBottom:
-                                    '0.35rem',
-                                }}
-                              />
-
-                              <div
-                                style={{
-                                  display:
-                                    'flex',
-                                  gap: '0.25rem',
-                                  overflowX:
-                                    'auto',
-                                  paddingBottom:
-                                    '0.1rem',
-                                }}
-                              >
-                                {projectMonthSteps.map(
-                                  (
-                                    step,
-                                    sIdx
-                                  ) => {
-                                    const isDisabled =
-                                      sIdx <
-                                      startIdx;
-
-                                    const isSelected =
-                                      endIdx ===
-                                      sIdx;
-
-                                    return (
-                                      <button
-                                        key={`end_${step.dateStr}_${sIdx}`}
-                                        type="button"
-                                        disabled={
-                                          isDisabled
-                                        }
-                                        onClick={() => {
-                                          if (
-                                            isDisabled
-                                          )
-                                            return;
-
-                                          const newDur =
-                                            Math.max(
-                                              1,
-                                              sIdx -
-                                                startIdx +
-                                                1
-                                            );
-
-                                          handleTaskFieldChange(
-                                            activeTaskIdx,
-                                            'duration_months',
-                                            newDur
-                                          );
-                                        }}
-                                        style={{
-                                          padding:
-                                            '0.18rem 0.4rem',
-                                          borderRadius:
-                                            '4px',
-                                          fontSize:
-                                            '0.64rem',
-                                          fontWeight:
-                                            isSelected
-                                              ? 800
-                                              : 600,
-                                          background:
-                                            isSelected
-                                              ? `${tColor}33`
-                                              : 'rgba(255, 255, 255, 0.04)',
-                                          border:
-                                            isSelected
-                                              ? `1px solid ${tColor}`
-                                              : '1px solid rgba(255, 255, 255, 0.08)',
-                                          color:
-                                            isSelected
-                                              ? tColor
-                                              : isDisabled
-                                              ? 'rgba(255,255,255,0.2)'
-                                              : 'var(--text-muted)',
-                                          cursor:
-                                            isDisabled
-                                              ? 'not-allowed'
-                                              : 'pointer',
-                                          whiteSpace:
-                                            'nowrap',
-                                          opacity:
-                                            isDisabled
-                                              ? 0.4
-                                              : 1,
-                                        }}
-                                      >
-                                        {
-                                          step.label
-                                        }
-                                      </button>
-                                    );
-                                  }
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
+                        />
                       );
                     })()}
                   </div>
@@ -3691,7 +3206,7 @@ export const ProjectPlanningView: React.FC<
             </thead>
 
             <tbody>
-              {paginatedProjects.map(
+              {projects.map(
                 (
                   project: any
                 ) => {
@@ -4049,88 +3564,6 @@ export const ProjectPlanningView: React.FC<
               )}
             </tbody>
           </table>
-        </div>
-      )}
-
-      {/* Pagination controls */}
-      {projects.length > PROJECTS_PER_PAGE && (
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '0.4rem',
-            marginTop: '1rem',
-            paddingBottom: '1rem',
-            flexWrap: 'wrap',
-          }}
-        >
-          <span
-            style={{
-              color: 'var(--text-muted)',
-              fontSize: '0.75rem',
-              marginRight: '0.5rem',
-            }}
-          >
-            Showing {(currentPage - 1) * PROJECTS_PER_PAGE + 1}
-            {' - '}
-            {Math.min(currentPage * PROJECTS_PER_PAGE, projects.length)}
-            {' of '}
-            {projects.length} projects
-          </span>
-          <button
-            type="button"
-            onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-            disabled={currentPage === 1}
-            style={{
-              padding: '0.45rem 0.8rem',
-              border: '1px solid var(--border-color, #374151)',
-              borderRadius: '6px',
-              background: currentPage === 1 ? 'rgba(255,255,255,0.05)' : 'transparent',
-              color: currentPage === 1 ? 'var(--text-muted, #6b7280)' : 'var(--text-main)',
-              cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
-              fontWeight: 600,
-            }}
-          >
-            Previous
-          </button>
-
-          {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
-            <button
-              key={page}
-              type="button"
-              onClick={() => setCurrentPage(page)}
-              style={{
-                minWidth: '34px',
-                padding: '0.45rem 0.65rem',
-                border: '1px solid var(--border-color, #374151)',
-                borderRadius: '6px',
-                background: currentPage === page ? 'var(--accent-color, #2563eb)' : 'transparent',
-                color: currentPage === page ? '#fff' : 'var(--text-main)',
-                cursor: 'pointer',
-                fontWeight: 700,
-              }}
-            >
-              {page}
-            </button>
-          ))}
-
-          <button
-            type="button"
-            onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
-            disabled={currentPage === totalPages}
-            style={{
-              padding: '0.45rem 0.8rem',
-              border: '1px solid var(--border-color, #374151)',
-              borderRadius: '6px',
-              background: currentPage === totalPages ? 'rgba(255,255,255,0.05)' : 'transparent',
-              color: currentPage === totalPages ? 'var(--text-muted, #6b7280)' : 'var(--text-main)',
-              cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
-              fontWeight: 600,
-            }}
-          >
-            Next
-          </button>
         </div>
       )}
 
