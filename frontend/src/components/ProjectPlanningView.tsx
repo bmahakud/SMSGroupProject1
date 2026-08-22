@@ -338,6 +338,12 @@ export const ProjectPlanningView: React.FC<
             wbs_no: wbs,
             projectCode: bp.project_code || wbs,
             project_code: bp.project_code || wbs,
+            // Keep SO fields from the backend so they are not lost when
+            // backendProjects are normalized for the table.
+            soNo: bp.so_no ?? bp.soNo ?? '',
+            so_no: bp.so_no ?? bp.soNo ?? '',
+            soLineItems: bp.so_line_items ?? bp.soLineItems ?? '',
+            so_line_items: bp.so_line_items ?? bp.soLineItems ?? '',
             location: bp.location || mainTask.location || '',
             projectName: bp.project_name || cName,
             project_name: bp.project_name || cName,
@@ -908,6 +914,13 @@ export const ProjectPlanningView: React.FC<
 
       projectCode: pCode,
       project_code: pCode,
+
+      // Include SO fields in the project object so the table and
+      // localStorage can display them immediately after creation.
+      soNo: formData.soNo,
+      so_no: formData.soNo,
+      soLineItems: formData.soLineItems,
+      so_line_items: formData.soLineItems,
 
       location:
         formData.location ||
@@ -3405,7 +3418,7 @@ export const ProjectPlanningView: React.FC<
                           tableCellStyle
                         }
                       >
-                        {project.so_no || project.soNo || '—'}
+                        {project.so_no ?? project.soNo ?? '—'}
                       </td>
 
                       {/* SO LINE ITEMS */}
@@ -3415,7 +3428,7 @@ export const ProjectPlanningView: React.FC<
                           tableCellStyle
                         }
                       >
-                        {project.so_line_items || project.soLineItems || '—'}
+                        {project.so_line_items ?? project.soLineItems ?? '—'}
                       </td>
 
                       {/* PROJECT CODE */}
