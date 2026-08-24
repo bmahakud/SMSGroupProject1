@@ -235,6 +235,41 @@ export const ProjectPlanningView: React.FC<
     }
   }, [currentPage, totalPages]);
 
+  // Close the three-dot action menu whenever the user clicks anywhere
+  // outside the currently open action menu/button.
+  useEffect(() => {
+    if (openActionMenuId === null) return;
+
+    const handleDocumentPointerDown = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+
+      const actionMenuElements = document.querySelectorAll(
+        '[data-project-action-menu]'
+      );
+
+      const clickedInsideActionMenu = Array.from(
+        actionMenuElements
+      ).some((element) => element.contains(target));
+
+      if (!clickedInsideActionMenu) {
+        setOpenActionMenuId(null);
+      }
+    };
+
+    document.addEventListener(
+      'pointerdown',
+      handleDocumentPointerDown
+    );
+
+    return () => {
+      document.removeEventListener(
+        'pointerdown',
+        handleDocumentPointerDown
+      );
+    };
+  }, [openActionMenuId]);
+
   useEffect(() => {
     const updateTableScrollWidth = () => {
       const tableContainer = tableScrollRef.current;
@@ -3770,7 +3805,8 @@ export const ProjectPlanningView: React.FC<
                             display: 'flex',
                             alignItems: 'center',
                             gap: '0.4rem',
-                            flexWrap: 'wrap',
+                            flexWrap: 'nowrap',
+                            whiteSpace: 'nowrap',
                           }}
                         >
                           <button
@@ -3826,9 +3862,11 @@ export const ProjectPlanningView: React.FC<
                            * is directly below the table.
                            */}
                           <div
+                            data-project-action-menu
                             style={{
                               position: 'relative',
                               display: 'inline-flex',
+                              flexShrink: 0,
                             }}
                           >
                             <button
