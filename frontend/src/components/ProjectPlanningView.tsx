@@ -4272,5 +4272,5 @@ const tableCellStyle: React.CSSProperties =
     color: '#0f172a',
     fontSize: '0.85rem',
     fontWeight: 500,
-    verticalAlign: 'middle',
+    verticalAlign: 'top',
   };
