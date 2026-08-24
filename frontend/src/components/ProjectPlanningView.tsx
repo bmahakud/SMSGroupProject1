@@ -229,6 +229,62 @@ export const ProjectPlanningView: React.FC<
     currentPage * PROJECTS_PER_PAGE
   );
 
+  /*
+   * Pagination is displayed in groups of 10 pages.
+   * Example: page 1-10 => 1 ... Last
+   *          page 11-20 => 1 ... 11 12 ... 20 ... Last
+   */
+  const PAGINATION_GROUP_SIZE = 10;
+  const currentPageGroupStart =
+    Math.floor((currentPage - 1) / PAGINATION_GROUP_SIZE) *
+      PAGINATION_GROUP_SIZE +
+    1;
+  const currentPageGroupEnd = Math.min(
+    currentPageGroupStart + PAGINATION_GROUP_SIZE - 1,
+    totalPages
+  );
+
+  const paginationPages: Array<number | 'ellipsis'> = [];
+
+  if (totalPages <= PAGINATION_GROUP_SIZE) {
+    for (let page = 1; page <= totalPages; page++) {
+      paginationPages.push(page);
+    }
+  } else {
+    if (currentPageGroupStart === 1) {
+      for (let page = 1; page <= currentPageGroupEnd; page++) {
+        paginationPages.push(page);
+      }
+
+      if (currentPageGroupEnd < totalPages - 1) {
+        paginationPages.push('ellipsis');
+      }
+
+      if (currentPageGroupEnd < totalPages) {
+        paginationPages.push(totalPages);
+      }
+    } else {
+      paginationPages.push(1);
+      paginationPages.push('ellipsis');
+
+      for (
+        let page = currentPageGroupStart;
+        page <= currentPageGroupEnd;
+        page++
+      ) {
+        paginationPages.push(page);
+      }
+
+      if (currentPageGroupEnd < totalPages - 1) {
+        paginationPages.push('ellipsis');
+      }
+
+      if (currentPageGroupEnd < totalPages) {
+        paginationPages.push(totalPages);
+      }
+    }
+  }
+
   useEffect(() => {
     if (currentPage > totalPages) {
       setCurrentPage(totalPages);
@@ -4007,209 +4063,156 @@ export const ProjectPlanningView: React.FC<
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '1rem',
+                justifyContent: 'center',
+                gap: '0.35rem',
                 marginTop: '1rem',
                 paddingTop: '0.9rem',
                 borderTop: '1px solid #e2e8f0',
                 flexWrap: 'wrap',
               }}
             >
-              <span
+              {/* First page */}
+              <button
+                type="button"
+                onClick={() => setCurrentPage(1)}
+                disabled={currentPage === 1}
+                aria-label="First page"
                 style={{
-                  color: 'var(--text-muted)',
-                  fontSize: '0.75rem',
-                  fontWeight: 600,
+                  minWidth: '34px',
+                  height: '34px',
+                  padding: '0.35rem 0.55rem',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '6px',
+                  background: currentPage === 1 ? '#f8fafc' : '#ffffff',
+                  color: currentPage === 1 ? '#94a3b8' : '#334155',
+                  cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                  fontSize: '0.72rem',
+                  fontWeight: 800,
+                  lineHeight: 1,
                 }}
               >
-                Showing{' '}
-                {Math.min(
-                  (currentPage - 1) * PROJECTS_PER_PAGE + 1,
-                  projects.length
-                )}
-                {' - '}
-                {Math.min(
-                  currentPage * PROJECTS_PER_PAGE,
-                  projects.length
-                )}{' '}
-                of {projects.length} projects
-              </span>
+                «
+              </button>
 
-              <div
+              {/* Previous page */}
+              <button
+                type="button"
+                onClick={() =>
+                  setCurrentPage((page) => Math.max(1, page - 1))
+                }
+                disabled={currentPage === 1}
+                aria-label="Previous page"
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.35rem',
-                  flexWrap: 'wrap',
+                  minWidth: '34px',
+                  height: '34px',
+                  padding: '0.35rem 0.55rem',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '6px',
+                  background: '#ffffff',
+                  color: currentPage === 1 ? '#94a3b8' : '#334155',
+                  cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                  fontSize: '0.72rem',
+                  fontWeight: 800,
+                  lineHeight: 1,
                 }}
               >
-                <button
-                  type="button"
-                  onClick={() =>
-                    setCurrentPage(1)
-                  }
-                  disabled={currentPage === 1}
-                  style={{
-                    padding: '0.42rem 0.7rem',
-                    border:
-                      '1px solid #cbd5e1',
-                    borderRadius: '6px',
-                    background:
-                      currentPage === 1
-                        ? '#f8fafc'
-                        : '#ffffff',
-                    color:
-                      currentPage === 1
-                        ? '#94a3b8'
-                        : '#0f172a',
-                    cursor:
-                      currentPage === 1
-                        ? 'not-allowed'
-                        : 'pointer',
-                    fontSize: '0.75rem',
-                    fontWeight: 700,
-                  }}
-                >
-                  First
-                </button>
+                ‹
+              </button>
 
-                <button
-                  type="button"
-                  onClick={() =>
-                    setCurrentPage((page) =>
-                      Math.max(1, page - 1)
-                    )
-                  }
-                  disabled={currentPage === 1}
-                  style={{
-                    padding: '0.42rem 0.7rem',
-                    border:
-                      '1px solid #cbd5e1',
-                    borderRadius: '6px',
-                    background:
-                      currentPage === 1
-                        ? '#f8fafc'
-                        : '#ffffff',
-                    color:
-                      currentPage === 1
-                        ? '#94a3b8'
-                        : '#0f172a',
-                    cursor:
-                      currentPage === 1
-                        ? 'not-allowed'
-                        : 'pointer',
-                    fontSize: '0.75rem',
-                    fontWeight: 700,
-                  }}
-                >
-                  Previous
-                </button>
-
-                {Array.from(
-                  { length: totalPages },
-                  (_, index) => index + 1
-                ).map((page) => (
+              {paginationPages.map((page, index) =>
+                page === 'ellipsis' ? (
+                  <span
+                    key={`ellipsis-${index}`}
+                    aria-hidden="true"
+                    style={{
+                      minWidth: '24px',
+                      textAlign: 'center',
+                      color: '#94a3b8',
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      userSelect: 'none',
+                    }}
+                  >
+                    ...
+                  </span>
+                ) : (
                   <button
                     key={page}
                     type="button"
-                    onClick={() =>
-                      setCurrentPage(page)
-                    }
+                    onClick={() => setCurrentPage(page)}
+                    aria-current={currentPage === page ? 'page' : undefined}
                     style={{
                       minWidth: '34px',
-                      padding: '0.42rem 0.55rem',
+                      height: '34px',
+                      padding: '0.35rem 0.55rem',
                       border:
                         currentPage === page
-                          ? '1px solid var(--accent-cyan)'
-                          : '1px solid #cbd5e1',
+                          ? '1px solid #0f4c81'
+                          : '1px solid #e2e8f0',
                       borderRadius: '6px',
                       background:
-                        currentPage === page
-                          ? 'var(--accent-cyan)'
-                          : '#ffffff',
-                      color:
-                        currentPage === page
-                          ? '#ffffff'
-                          : '#0f172a',
+                        currentPage === page ? '#0f4c81' : '#ffffff',
+                      color: currentPage === page ? '#ffffff' : '#334155',
                       cursor: 'pointer',
-                      fontSize: '0.75rem',
+                      fontSize: '0.72rem',
                       fontWeight: 800,
+                      lineHeight: 1,
                     }}
                   >
                     {page}
                   </button>
-                ))}
+                )
+              )}
 
-                <button
-                  type="button"
-                  onClick={() =>
-                    setCurrentPage((page) =>
-                      Math.min(
-                        totalPages,
-                        page + 1
-                      )
-                    )
-                  }
-                  disabled={
-                    currentPage === totalPages
-                  }
-                  style={{
-                    padding: '0.42rem 0.7rem',
-                    border:
-                      '1px solid #cbd5e1',
-                    borderRadius: '6px',
-                    background:
-                      currentPage === totalPages
-                        ? '#f8fafc'
-                        : '#ffffff',
-                    color:
-                      currentPage === totalPages
-                        ? '#94a3b8'
-                        : '#0f172a',
-                    cursor:
-                      currentPage === totalPages
-                        ? 'not-allowed'
-                        : 'pointer',
-                    fontSize: '0.75rem',
-                    fontWeight: 700,
-                  }}
-                >
-                  Next
-                </button>
+              {/* Next page */}
+              <button
+                type="button"
+                onClick={() =>
+                  setCurrentPage((page) => Math.min(totalPages, page + 1))
+                }
+                disabled={currentPage === totalPages}
+                aria-label="Next page"
+                style={{
+                  minWidth: '34px',
+                  height: '34px',
+                  padding: '0.35rem 0.55rem',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '6px',
+                  background: '#ffffff',
+                  color:
+                    currentPage === totalPages ? '#94a3b8' : '#334155',
+                  cursor:
+                    currentPage === totalPages ? 'not-allowed' : 'pointer',
+                  fontSize: '0.72rem',
+                  fontWeight: 800,
+                  lineHeight: 1,
+                }}
+              >
+                ›
+              </button>
 
-                <button
-                  type="button"
-                  onClick={() =>
-                    setCurrentPage(totalPages)
-                  }
-                  disabled={
-                    currentPage === totalPages
-                  }
-                  style={{
-                    padding: '0.42rem 0.7rem',
-                    border:
-                      '1px solid #cbd5e1',
-                    borderRadius: '6px',
-                    background:
-                      currentPage === totalPages
-                        ? '#f8fafc'
-                        : '#ffffff',
-                    color:
-                      currentPage === totalPages
-                        ? '#94a3b8'
-                        : '#0f172a',
-                    cursor:
-                      currentPage === totalPages
-                        ? 'not-allowed'
-                        : 'pointer',
-                    fontSize: '0.75rem',
-                    fontWeight: 700,
-                  }}
-                >
-                  Last
-                </button>
-              </div>
+              {/* Last page */}
+              <button
+                type="button"
+                onClick={() => setCurrentPage(totalPages)}
+                disabled={currentPage === totalPages}
+                aria-label="Last page"
+                style={{
+                  minWidth: '34px',
+                  height: '34px',
+                  padding: '0.35rem 0.55rem',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '6px',
+                  background: currentPage === totalPages ? '#f8fafc' : '#ffffff',
+                  color: currentPage === totalPages ? '#94a3b8' : '#334155',
+                  cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+                  fontSize: '0.72rem',
+                  fontWeight: 800,
+                  lineHeight: 1,
+                }}
+              >
+                »
+              </button>
             </div>
           )}
         </div>
