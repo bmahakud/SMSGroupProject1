@@ -231,8 +231,8 @@ export const ProjectPlanningView: React.FC<
 
   /*
    * Pagination is displayed in groups of 10 pages.
-   * Example: page 1-10 => 1 ... Last
-   *          page 11-20 => 1 ... 11 12 ... 20 ... Last
+   * Example: page 1-10 => 1 2 3 ... 10 ... Last
+   *          page 11-20 => 1 ... 11 12 13 ... 20 ... Last
    */
   const PAGINATION_GROUP_SIZE = 10;
   const currentPageGroupStart =
@@ -250,38 +250,36 @@ export const ProjectPlanningView: React.FC<
     for (let page = 1; page <= totalPages; page++) {
       paginationPages.push(page);
     }
-  } else {
-    if (currentPageGroupStart === 1) {
-      for (let page = 1; page <= currentPageGroupEnd; page++) {
-        paginationPages.push(page);
-      }
+  } else if (currentPageGroupStart === 1) {
+    for (let page = 1; page <= currentPageGroupEnd; page++) {
+      paginationPages.push(page);
+    }
 
-      if (currentPageGroupEnd < totalPages - 1) {
-        paginationPages.push('ellipsis');
-      }
-
-      if (currentPageGroupEnd < totalPages) {
-        paginationPages.push(totalPages);
-      }
-    } else {
-      paginationPages.push(1);
+    if (currentPageGroupEnd < totalPages - 1) {
       paginationPages.push('ellipsis');
+    }
 
-      for (
-        let page = currentPageGroupStart;
-        page <= currentPageGroupEnd;
-        page++
-      ) {
-        paginationPages.push(page);
-      }
+    if (currentPageGroupEnd < totalPages) {
+      paginationPages.push(totalPages);
+    }
+  } else {
+    paginationPages.push(1);
+    paginationPages.push('ellipsis');
 
-      if (currentPageGroupEnd < totalPages - 1) {
-        paginationPages.push('ellipsis');
-      }
+    for (
+      let page = currentPageGroupStart;
+      page <= currentPageGroupEnd;
+      page++
+    ) {
+      paginationPages.push(page);
+    }
 
-      if (currentPageGroupEnd < totalPages) {
-        paginationPages.push(totalPages);
-      }
+    if (currentPageGroupEnd < totalPages - 1) {
+      paginationPages.push('ellipsis');
+    }
+
+    if (currentPageGroupEnd < totalPages) {
+      paginationPages.push(totalPages);
     }
   }
 
@@ -1124,6 +1122,12 @@ export const ProjectPlanningView: React.FC<
 
       wbsNo: wbs,
       wbs_no: wbs,
+
+      soNo: formData.soNo,
+      so_no: formData.soNo,
+
+      soLineItems: formData.soLineItems,
+      so_line_items: formData.soLineItems,
 
       projectCode: pCode,
       project_code: pCode,
@@ -4064,155 +4068,156 @@ export const ProjectPlanningView: React.FC<
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: '0.35rem',
                 marginTop: '1rem',
                 paddingTop: '0.9rem',
                 borderTop: '1px solid #e2e8f0',
-                flexWrap: 'wrap',
               }}
             >
-              {/* First page */}
-              <button
-                type="button"
-                onClick={() => setCurrentPage(1)}
-                disabled={currentPage === 1}
-                aria-label="First page"
+              <div
                 style={{
-                  minWidth: '34px',
-                  height: '34px',
-                  padding: '0.35rem 0.55rem',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '6px',
-                  background: currentPage === 1 ? '#f8fafc' : '#ffffff',
-                  color: currentPage === 1 ? '#94a3b8' : '#334155',
-                  cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
-                  fontSize: '0.72rem',
-                  fontWeight: 800,
-                  lineHeight: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.3rem',
+                  flexWrap: 'wrap',
                 }}
               >
-                «
-              </button>
+                {/* Previous page */}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setCurrentPage((page) =>
+                      Math.max(1, page - 1)
+                    )
+                  }
+                  disabled={currentPage === 1}
+                  aria-label="Previous page"
+                  title="Previous page"
+                  style={{
+                    width: '30px',
+                    height: '30px',
+                    padding: 0,
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '6px',
+                    background:
+                      currentPage === 1
+                        ? '#f8fafc'
+                        : '#ffffff',
+                    color:
+                      currentPage === 1
+                        ? '#94a3b8'
+                        : '#0f172a',
+                    cursor:
+                      currentPage === 1
+                        ? 'not-allowed'
+                        : 'pointer',
+                    fontSize: '0.72rem',
+                    fontWeight: 800,
+                    lineHeight: 1,
+                  }}
+                >
+                  «
+                </button>
 
-              {/* Previous page */}
-              <button
-                type="button"
-                onClick={() =>
-                  setCurrentPage((page) => Math.max(1, page - 1))
-                }
-                disabled={currentPage === 1}
-                aria-label="Previous page"
-                style={{
-                  minWidth: '34px',
-                  height: '34px',
-                  padding: '0.35rem 0.55rem',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '6px',
-                  background: '#ffffff',
-                  color: currentPage === 1 ? '#94a3b8' : '#334155',
-                  cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
-                  fontSize: '0.72rem',
-                  fontWeight: 800,
-                  lineHeight: 1,
-                }}
-              >
-                ‹
-              </button>
+                {paginationPages.map((item, index) => {
+                  if (item === 'ellipsis') {
+                    return (
+                      <span
+                        key={`ellipsis-${index}`}
+                        aria-hidden="true"
+                        style={{
+                          minWidth: '20px',
+                          height: '30px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#64748b',
+                          fontSize: '0.72rem',
+                          fontWeight: 800,
+                        }}
+                      >
+                        ...
+                      </span>
+                    );
+                  }
 
-              {paginationPages.map((page, index) =>
-                page === 'ellipsis' ? (
-                  <span
-                    key={`ellipsis-${index}`}
-                    aria-hidden="true"
-                    style={{
-                      minWidth: '24px',
-                      textAlign: 'center',
-                      color: '#94a3b8',
-                      fontSize: '0.75rem',
-                      fontWeight: 700,
-                      userSelect: 'none',
-                    }}
-                  >
-                    ...
-                  </span>
-                ) : (
-                  <button
-                    key={page}
-                    type="button"
-                    onClick={() => setCurrentPage(page)}
-                    aria-current={currentPage === page ? 'page' : undefined}
-                    style={{
-                      minWidth: '34px',
-                      height: '34px',
-                      padding: '0.35rem 0.55rem',
-                      border:
-                        currentPage === page
-                          ? '1px solid #0f4c81'
-                          : '1px solid #e2e8f0',
-                      borderRadius: '6px',
-                      background:
-                        currentPage === page ? '#0f4c81' : '#ffffff',
-                      color: currentPage === page ? '#ffffff' : '#334155',
-                      cursor: 'pointer',
-                      fontSize: '0.72rem',
-                      fontWeight: 800,
-                      lineHeight: 1,
-                    }}
-                  >
-                    {page}
-                  </button>
-                )
-              )}
+                  const page = item;
+                  const isActive = currentPage === page;
 
-              {/* Next page */}
-              <button
-                type="button"
-                onClick={() =>
-                  setCurrentPage((page) => Math.min(totalPages, page + 1))
-                }
-                disabled={currentPage === totalPages}
-                aria-label="Next page"
-                style={{
-                  minWidth: '34px',
-                  height: '34px',
-                  padding: '0.35rem 0.55rem',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '6px',
-                  background: '#ffffff',
-                  color:
-                    currentPage === totalPages ? '#94a3b8' : '#334155',
-                  cursor:
-                    currentPage === totalPages ? 'not-allowed' : 'pointer',
-                  fontSize: '0.72rem',
-                  fontWeight: 800,
-                  lineHeight: 1,
-                }}
-              >
-                ›
-              </button>
+                  return (
+                    <button
+                      key={page}
+                      type="button"
+                      onClick={() => setCurrentPage(page)}
+                      aria-label={`Go to page ${page}`}
+                      aria-current={
+                        isActive ? 'page' : undefined
+                      }
+                      style={{
+                        minWidth: '30px',
+                        height: '30px',
+                        padding: '0 0.45rem',
+                        border:
+                          isActive
+                            ? '1px solid #0f3554'
+                            : '1px solid #e2e8f0',
+                        borderRadius: '6px',
+                        background:
+                          isActive
+                            ? '#0f3554'
+                            : '#ffffff',
+                        color:
+                          isActive
+                            ? '#ffffff'
+                            : '#334155',
+                        cursor: 'pointer',
+                        fontSize: '0.7rem',
+                        fontWeight: 700,
+                        lineHeight: 1,
+                      }}
+                    >
+                      {page}
+                    </button>
+                  );
+                })}
 
-              {/* Last page */}
-              <button
-                type="button"
-                onClick={() => setCurrentPage(totalPages)}
-                disabled={currentPage === totalPages}
-                aria-label="Last page"
-                style={{
-                  minWidth: '34px',
-                  height: '34px',
-                  padding: '0.35rem 0.55rem',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '6px',
-                  background: currentPage === totalPages ? '#f8fafc' : '#ffffff',
-                  color: currentPage === totalPages ? '#94a3b8' : '#334155',
-                  cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
-                  fontSize: '0.72rem',
-                  fontWeight: 800,
-                  lineHeight: 1,
-                }}
-              >
-                »
-              </button>
+                {/* Next page */}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setCurrentPage((page) =>
+                      Math.min(totalPages, page + 1)
+                    )
+                  }
+                  disabled={currentPage === totalPages}
+                  aria-label="Next page"
+                  title="Next page"
+                  style={{
+                    width: '30px',
+                    height: '30px',
+                    padding: 0,
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '6px',
+                    background:
+                      currentPage === totalPages
+                        ? '#f8fafc'
+                        : '#ffffff',
+                    color:
+                      currentPage === totalPages
+                        ? '#94a3b8'
+                        : '#0f172a',
+                    cursor:
+                      currentPage === totalPages
+                        ? 'not-allowed'
+                        : 'pointer',
+                    fontSize: '0.72rem',
+                    fontWeight: 800,
+                    lineHeight: 1,
+                  }}
+                >
+                  »
+                </button>
+              </div>
             </div>
           )}
         </div>
