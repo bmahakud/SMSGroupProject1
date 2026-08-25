@@ -290,6 +290,22 @@ export const BackendProjectProgress: React.FC = () => {
                         >
                           WBS: {wbsNo}
                         </span>
+                        {(proj.so_no || proj.soNo) && (
+                          <span
+                            style={{
+                              padding: '0.25rem 0.6rem',
+                              background: 'rgba(245, 158, 11, 0.12)',
+                              color: '#d97706',
+                              borderRadius: '6px',
+                              fontSize: '0.78rem',
+                              fontWeight: 800,
+                              fontFamily: 'monospace',
+                              border: '1px solid rgba(245, 158, 11, 0.3)',
+                            }}
+                          >
+                            SO: {proj.so_no || proj.soNo}
+                          </span>
+                        )}
                         {projectCode && projectCode !== wbsNo && (
                           <span
                             style={{
@@ -326,6 +342,7 @@ export const BackendProjectProgress: React.FC = () => {
                         <span>Equipment: <strong style={{ color: '#0f172a' }}>{eqName}</strong></span>
                         <span>Eq Weight: <strong style={{ color: '#0f172a' }}>{eqWeight !== 'N/A' ? `${Number(eqWeight).toLocaleString()} kg` : 'N/A'}</strong></span>
                         {fabWeight && <span>Fab Weight: <strong style={{ color: '#0f172a' }}>{Number(fabWeight).toLocaleString()} kg</strong></span>}
+                        {proj.qty && <span>Qty: <strong style={{ color: '#0f172a' }}>{proj.qty}</strong></span>}
                         <span>Manager: <strong style={{ color: '#0f172a' }}>{manager}</strong></span>
                         <span>Zero Date: <strong style={{ color: '#059669' }}>{zeroDate}</strong></span>
                         <span>CDD: <strong style={{ color: '#0284c7' }}>{cdd}</strong></span>

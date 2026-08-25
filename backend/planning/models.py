@@ -76,6 +76,7 @@ class Project(models.Model):
     equipment_name = models.CharField(max_length=256, blank=True, default="")
     equipment_weight = models.CharField(max_length=128, blank=True, default="")
     fabrication_weight = models.CharField(max_length=128, blank=True, default="")
+    qty = models.CharField(max_length=128, blank=True, default="")
     zero_date = models.DateField(null=True, blank=True)
     cdd = models.DateField(null=True, blank=True)
     edd = models.DateField(null=True, blank=True)

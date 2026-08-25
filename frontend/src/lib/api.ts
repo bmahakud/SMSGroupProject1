@@ -490,6 +490,8 @@ export interface BackendProject {
   id?: number;
   customer_name?: string;
   wbs_no?: string;
+  so_no?: string;
+  so_line_items?: string;
   project_code?: string;
   location?: string;
   project_name: string;
@@ -497,6 +499,7 @@ export interface BackendProject {
   equipment_name?: string;
   equipment_weight?: string;
   fabrication_weight?: string;
+  qty?: string;
   zero_date?: string;
   cdd?: string;
   edd?: string;

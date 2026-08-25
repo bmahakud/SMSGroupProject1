@@ -65,7 +65,7 @@ class ProjectSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'customer_name', 'wbs_no', 'so_no', 'so_line_items', 'project_code', 'location',
             'project_name', 'project_number', 'equipment_name', 'equipment_weight',
-            'fabrication_weight',
+            'fabrication_weight', 'qty',
             'zero_date', 'cdd', 'edd', 'project_manager', 'total_planned_hours',
             'priority', 'status', 'tasks', 'created_at', 'updated_at'
         ]
