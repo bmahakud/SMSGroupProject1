@@ -90,6 +90,7 @@ export const ProjectDetailsModal: React.FC<ProjectDetailsModalProps> = ({
     equipmentName: '',
     equipmentWeight: '',
     fabricationWeight: '',
+    qty: '',
     description: '',
     startDate: '',
     endDate: '',
@@ -124,6 +125,7 @@ export const ProjectDetailsModal: React.FC<ProjectDetailsModalProps> = ({
         equipmentName: project.equipment_name || project.equipmentName || '',
         equipmentWeight: project.equipment_weight || project.equipmentWeight || '',
         fabricationWeight: project.fabrication_weight || project.fabricationWeight || '',
+        qty: project.qty || '',
         description: project.description || '',
         startDate: project.zero_date || project.startDate || '',
         endDate: project.cdd || project.endDate || '',
@@ -285,6 +287,7 @@ export const ProjectDetailsModal: React.FC<ProjectDetailsModalProps> = ({
       equipment_weight: projectMeta.equipmentWeight,
       fabricationWeight: projectMeta.fabricationWeight,
       fabrication_weight: projectMeta.fabricationWeight,
+      qty: projectMeta.qty,
       description: projectMeta.description,
       startDate: projectMeta.startDate,
       zero_date: projectMeta.startDate,
@@ -672,8 +675,8 @@ export const ProjectDetailsModal: React.FC<ProjectDetailsModalProps> = ({
               </div>
             </div>
 
-            {/* ROW 3: Equipment Name, Equipment Weight & Fabrication Weight */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginBottom: '0.85rem' }}>
+            {/* ROW 3: Equipment Name, Equipment Weight, Fabrication Weight & Qty */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '1rem', marginBottom: '0.85rem' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '0.75rem', color: '#334155', fontWeight: 700, marginBottom: '0.35rem' }}>
                   Equipment Name
@@ -727,6 +730,30 @@ export const ProjectDetailsModal: React.FC<ProjectDetailsModalProps> = ({
                   name="fabricationWeight"
                   value={projectMeta.fabricationWeight}
                   onChange={handleMetaChange}
+                  style={{
+                    width: '100%',
+                    padding: '0.6rem 0.8rem',
+                    background: '#ffffff',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '8px',
+                    color: '#0f172a',
+                    fontSize: '0.88rem',
+                    fontWeight: 600,
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', color: '#334155', fontWeight: 700, marginBottom: '0.35rem' }}>
+                  Qty
+                </label>
+                <input
+                  type="number"
+                  name="qty"
+                  value={projectMeta.qty}
+                  onChange={handleMetaChange}
+                  placeholder="e.g. 1"
+                  min="0"
                   style={{
                     width: '100%',
                     padding: '0.6rem 0.8rem',

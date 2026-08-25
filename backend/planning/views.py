@@ -721,8 +721,8 @@ class ProjectViewSet(viewsets.ModelViewSet):
         project = Project.objects.create(
             customer_name=customer_name,
             wbs_no=wbs_no,
-            so_no=data.get('soNo', data.get('so_no', '')),
-            so_line_items=data.get('soLineItems', data.get('so_line_items', '')),
+            so_no=data.get('soNo') or data.get('so_no') or '',
+            so_line_items=data.get('soLineItems') or data.get('so_line_items') or '',
             project_code=project_code,
             location=location,
             project_name=project_name,
@@ -730,6 +730,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
             equipment_name=data.get('equipmentName', data.get('equipment_name', '')),
             equipment_weight=data.get('equipmentWeight', data.get('equipment_weight', '')),
             fabrication_weight=data.get('fabricationWeight', data.get('fabrication_weight', '')),
+            qty=str(data.get('qty', '')),
             zero_date=data.get('startDate') or data.get('zero_date') or None,
             cdd=data.get('endDate') or data.get('cdd') or None,
             edd=data.get('edd') or data.get('edd_date') or None,
@@ -839,9 +840,15 @@ class ProjectViewSet(viewsets.ModelViewSet):
         if 'wbsNo' in data or 'wbs_no' in data:
             instance.wbs_no = data.get('wbsNo') or data.get('wbs_no')
         if 'soNo' in data or 'so_no' in data:
-            instance.so_no = data.get('soNo') or data.get('so_no')
+            so_val = data.get('soNo')
+            if so_val is None or so_val == '':
+                so_val = data.get('so_no', '')
+            instance.so_no = so_val or ''
         if 'soLineItems' in data or 'so_line_items' in data:
-            instance.so_line_items = data.get('soLineItems') or data.get('so_line_items')
+            so_line_val = data.get('soLineItems')
+            if so_line_val is None or so_line_val == '':
+                so_line_val = data.get('so_line_items', '')
+            instance.so_line_items = so_line_val or ''
         if 'projectCode' in data or 'project_code' in data:
             instance.project_code = data.get('projectCode') or data.get('project_code')
         if 'location' in data:
@@ -852,12 +859,18 @@ class ProjectViewSet(viewsets.ModelViewSet):
             instance.equipment_name = data.get('equipmentName') or data.get('equipment_name')
         if 'equipmentWeight' in data or 'equipment_weight' in data:
             instance.equipment_weight = data.get('equipmentWeight') or data.get('equipment_weight')
+        if 'fabricationWeight' in data or 'fabrication_weight' in data:
+            instance.fabrication_weight = data.get('fabricationWeight') if data.get('fabricationWeight') is not None else data.get('fabrication_weight', '')
+        if 'qty' in data:
+            instance.qty = str(data.get('qty') or '')
         if 'description' in data:
             instance.description = data.get('description', '')
         if 'startDate' in data or 'zero_date' in data:
             instance.zero_date = data.get('startDate') or data.get('zero_date') or None
         if 'endDate' in data or 'cdd' in data:
             instance.cdd = data.get('endDate') or data.get('cdd') or None
+        if 'edd' in data or 'edd_date' in data:
+            instance.edd = data.get('edd') or data.get('edd_date') or None
         if 'projectManager' in data or 'project_manager' in data:
             instance.project_manager = data.get('projectManager') or data.get('project_manager')
         if 'plannedHours' in data or 'total_planned_hours' in data:

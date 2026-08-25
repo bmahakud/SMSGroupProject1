@@ -28,11 +28,23 @@ import { fetchBackendProjects, authenticatedFetch, getApiBaseUrl } from '../lib/
 interface Project {
   id: string;
   serialNo: number;
+  customerName?: string;
+  customer_name?: string;
+  wbsNo?: string;
+  wbs_no?: string;
+  soNo?: string;
+  so_no?: string;
+  soLineItems?: string;
+  so_line_items?: string;
+  projectCode?: string;
+  project_code?: string;
   projectName: string;
   projectNumber: string;
   equipmentName: string;
   equipmentWeight: string;
   fabricationWeight?: string;
+  fabrication_weight?: string;
+  qty?: string;
   startDate: string;
   endDate: string;
   edd?: string;
@@ -184,6 +196,7 @@ export const ProjectPlanningView: React.FC<
     equipmentName: '',
     equipmentWeight: '',
     fabricationWeight: '',
+    qty: '',
     startDate: '',
     endDate: '',
     edd: '',
@@ -551,6 +564,10 @@ export const ProjectPlanningView: React.FC<
             customer_name: cName,
             wbsNo: wbs,
             wbs_no: wbs,
+            soNo: bp.so_no || bp.soNo || '',
+            so_no: bp.so_no || bp.soNo || '',
+            soLineItems: bp.so_line_items || bp.soLineItems || '',
+            so_line_items: bp.so_line_items || bp.soLineItems || '',
             projectCode: bp.project_code || wbs,
             project_code: bp.project_code || wbs,
             location: bp.location || mainTask.location || '',
@@ -562,6 +579,7 @@ export const ProjectPlanningView: React.FC<
             equipmentWeight: bp.equipment_weight || '',
             fabricationWeight: bp.fabrication_weight || '',
             fabrication_weight: bp.fabrication_weight || '',
+            qty: bp.qty || '',
             startDate: bp.zero_date || bp.startDate || '',
             endDate: bp.cdd || bp.endDate || '',
             edd: bp.edd || bp.edd_date || '',
@@ -822,6 +840,7 @@ export const ProjectPlanningView: React.FC<
       equipmentName: '',
       equipmentWeight: '',
       fabricationWeight: '',
+      qty: '',
       startDate: '',
       endDate: '',
       edd: '',
@@ -1154,6 +1173,9 @@ export const ProjectPlanningView: React.FC<
 
       fabrication_weight:
         formData.fabricationWeight,
+
+      qty:
+        formData.qty,
 
       startDate:
         formData.startDate,
@@ -1667,13 +1689,13 @@ export const ProjectPlanningView: React.FC<
               </div>
             </div>
 
-            {/* ROW 3 - EQUIPMENT NAME, EQUIPMENT WEIGHT & FABRICATION WEIGHT */}
+            {/* ROW 3 - EQUIPMENT NAME, EQUIPMENT WEIGHT, FABRICATION WEIGHT & QTY */}
 
             <div
               style={{
                 display: 'grid',
                 gridTemplateColumns:
-                  '1fr 1fr 1fr',
+                  '1fr 1fr 1fr 1fr',
                 gap: '1rem',
                 marginBottom:
                   '1rem',
@@ -1745,6 +1767,30 @@ export const ProjectPlanningView: React.FC<
                   min="0"
                   step="any"
                   placeholder="e.g. 12000"
+                  className="project-form-input"
+                />
+              </div>
+
+              {/* QTY */}
+
+              <div>
+                <label className="project-form-label">
+                  <Hash size={14} />
+                  Qty
+                </label>
+
+                <input
+                  type="number"
+                  name="qty"
+                  value={
+                    formData.qty
+                  }
+                  onChange={
+                    handleChange
+                  }
+                  min="0"
+                  step="1"
+                  placeholder="e.g. 1"
                   className="project-form-input"
                 />
               </div>
@@ -3503,6 +3549,10 @@ export const ProjectPlanningView: React.FC<
                 </th>
 
                 <th style={tableHeaderStyle}>
+                  Qty
+                </th>
+
+                <th style={tableHeaderStyle}>
                   Manager
                 </th>
 
@@ -3698,6 +3748,16 @@ export const ProjectPlanningView: React.FC<
                               fabW
                             ).toLocaleString()} kg`
                           : '—'}
+                      </td>
+
+                      {/* QTY */}
+
+                      <td
+                        style={
+                          tableCellStyle
+                        }
+                      >
+                        {project.qty || '—'}
                       </td>
 
                       {/* MANAGER */}
