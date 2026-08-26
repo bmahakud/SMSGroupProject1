@@ -749,7 +749,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
                 'allocated_hours': total_planned_hours,
                 'duration_months': int(data.get('duration_months', 3)),
                 'start_date': project.zero_date,
-                'location': data.get('location', ''),
+                'location': data.get('task_location') or 'Khordha',
                 'smi': data.get('smi', ''),
                 'labour_supply': data.get('labourSupply', data.get('labour_supply', '')),
                 'job_contractor': data.get('jobContractor', data.get('job_contractor', '')),
@@ -771,9 +771,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
             buf_h = float(t_data.get('buffer_hours') or t_data.get('bufferHours') or 0.0)
 
             t_loc = t_data.get('location', '')
-            if str(t_name).strip().lower() != 'welding':
-                t_loc = 'Khordha'
-            elif not t_loc:
+            if t_loc not in ['Khordha', 'Mancheswar', 'K+M']:
                 t_loc = 'Khordha'
 
             task_obj = ProjectTask.objects.create(
@@ -891,7 +889,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
                 'allocated_hours': instance.total_planned_hours,
                 'duration_months': int(data.get('duration_months', 3)),
                 'start_date': instance.zero_date,
-                'location': data.get('location', ''),
+                'location': data.get('task_location') or 'Khordha',
                 'smi': data.get('smi', ''),
                 'labour_supply': data.get('labourSupply', data.get('labour_supply', '')),
                 'job_contractor': data.get('jobContractor', data.get('jobContractor', '')),
@@ -915,9 +913,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
                 buf_h = float(t_data.get('buffer_hours') or t_data.get('bufferHours') or 0.0)
 
                 t_loc = t_data.get('location', '')
-                if str(t_name).strip().lower() != 'welding':
-                    t_loc = 'Khordha'
-                elif not t_loc:
+                if t_loc not in ['Khordha', 'Mancheswar', 'K+M']:
                     t_loc = 'Khordha'
 
                 task_obj = ProjectTask.objects.create(
