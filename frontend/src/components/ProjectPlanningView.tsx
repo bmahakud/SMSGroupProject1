@@ -570,7 +570,7 @@ export const ProjectPlanningView: React.FC<
             so_line_items: bp.so_line_items || bp.soLineItems || '',
             projectCode: bp.project_code || wbs,
             project_code: bp.project_code || wbs,
-            location: bp.location || mainTask.location || '',
+            location: bp.location || '',
             projectName: bp.project_name || cName,
             project_name: bp.project_name || cName,
             projectNumber: bp.project_number || wbs,
@@ -1151,10 +1151,7 @@ export const ProjectPlanningView: React.FC<
       projectCode: pCode,
       project_code: pCode,
 
-      location:
-        formData.location ||
-        primaryTask.location ||
-        '',
+      location: formData.location || '',
 
       projectName: cName,
       project_name: cName,
@@ -1232,9 +1229,7 @@ export const ProjectPlanningView: React.FC<
           formData.startDate,
 
         location:
-          t.location ||
-          formData.location ||
-          '',
+          (t.location && ['Khordha', 'Mancheswar', 'K+M'].includes(t.location)) ? t.location : 'Khordha',
       })),
     };
 
